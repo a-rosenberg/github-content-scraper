@@ -3,10 +3,8 @@ Content crawling tools
 
 Notes:
     Assumes that user is logged into GitHub on a the running machine.
-
-Todo:
-    * Create a global variable to limit recursion depth on counter
 """
+import logging
 import requests
 import base64
 import time
@@ -21,7 +19,8 @@ def content_scraper(username: str,
                     repo: str,
                     path: Optional[str] = None,
                     sleep: float = 2,
-                    counter_start: int = 0) -> List[Dict]:
+                    iter_start: int = 0,
+                    iter_limit: int = 100) -> List[Dict]:
     """Recursively scrape content from Github Repository
 
     Args:
@@ -32,14 +31,18 @@ def content_scraper(username: str,
             to None.
         sleep: Time to sleep between API requests, not accounting for code
             execution time.
-        counter_start: Start counter for recursion iteration limitation.
+        iter_start: Start counter for recursion iteration limitation.
+        iter_limit: Maximum number of files to read per repository.
 
     Returns:
         Mapping of Github repository object path names and their contents.
     """
     content: List[Dict] = []
+    counter = iter_start
 
     for item in get_api_response(username, repo, path):
+        counter += 1
+
         _type = item['type']
         _path = item['path']
 
@@ -47,6 +50,7 @@ def content_scraper(username: str,
 
             response = get_api_response(username, repo, path=_path)
             file_content = parse_content(response)
+
             content.append({
                 'path': _path,
                 'username': username,
@@ -56,13 +60,20 @@ def content_scraper(username: str,
 
         elif _type == 'dir':
             content.extend(
-                content_scraper(username, repo, path=_path)
+                content_scraper(
+                    username=username,
+                    repo=repo,
+                    path=_path,
+                    iter_start=counter),
             )
 
         else:
             continue
 
         time.sleep(sleep)
+        if counter >= iter_limit:
+            logging.warning('limit of files per repo reached: %s', iter_limit)
+            break
 
     return content
 
