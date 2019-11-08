@@ -1,0 +1,5 @@
+ignore.py
+
+__pycache__/
+
+.idea/

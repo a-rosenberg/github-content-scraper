@@ -1,15 +1,19 @@
 """
-Content crawling tools
+API crawling tools
 
 Notes:
-    Assumes that user is logged into GitHub on a the running machine.
+    Assumes there is a ignore.py module on the same level containing a client_id and client_secret
+    variable to configure the API call.  Follow these instrucitons to get a key:
+    https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/.
 """
 import logging
 import requests
 import base64
 import time
+import copy
+import os
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 from pprint import pprint
 
 import ignore
@@ -20,7 +24,8 @@ def content_scraper(username: str,
                     path: Optional[str] = None,
                     sleep: float = 2,
                     iter_start: int = 0,
-                    iter_limit: int = 100) -> List[Dict]:
+                    iter_limit: int = 100,
+                    select_extenstions: Optional[Sequence] = None) -> List[Dict]:
     """Recursively scrape content from Github Repository
 
     Args:
@@ -33,39 +38,49 @@ def content_scraper(username: str,
             execution time.
         iter_start: Start counter for recursion iteration limitation.
         iter_limit: Maximum number of files to read per repository.
+        select_extenstions: Sequence of file extensions to be returned.
+            File types not in the sequence will not be yielded.
 
-    Returns:
+    Yields:
         Mapping of Github repository object path names and their contents.
     """
-    content: List[Dict] = []
-    counter = iter_start
+    counter = copy.copy(iter_start)
 
     for item in get_api_response(username, repo, path):
-        counter += 1
 
         _type = item['type']
         _path = item['path']
+        _ext = os.path.splitext(_path)[-1]
 
         if _type == 'file':
 
-            response = get_api_response(username, repo, path=_path)
-            file_content = parse_content(response)
+            if _ext in select_extenstions if select_extenstions else True:
 
-            content.append({
-                'path': _path,
-                'username': username,
-                'repo': repo,
-                'content': file_content,
-            })
+                response = get_api_response(username, repo, path=_path)
+                file_content = parse_content(response)
+
+                yield {
+                    'path': _path,
+                    'username': username,
+                    'repo': repo,
+                    'content': file_content,
+                }
+                counter += 1
+
+            else:
+                logging.info('file %s skipped because extension type: %s', _path, _ext)
 
         elif _type == 'dir':
-            content.extend(
-                content_scraper(
-                    username=username,
-                    repo=repo,
-                    path=_path,
-                    iter_start=counter),
+            children = content_scraper(
+                username=username,
+                repo=repo,
+                path=_path,
+                iter_start=counter,
+                iter_limit=iter_limit,
             )
+
+            for child in children:
+                yield child
 
         else:
             continue
@@ -74,8 +89,6 @@ def content_scraper(username: str,
         if counter >= iter_limit:
             logging.warning('limit of files per repo reached: %s', iter_limit)
             break
-
-    return content
 
 
 def get_api_response(username: str,
