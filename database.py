@@ -10,12 +10,13 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'content.db')
 
 
 GIT_CONTENT_DEFINITION = ('CREATE TABLE IF NOT EXISTS content ('
+                          'tweet_id TEXT,'
                           'username TEXT, '
                           'repo TEXT, '
                           'path TEXT, '
                           'content TEXT, '
                           'date_added DATETIME DEFAULT CURRENT_TIMESTAMP, ' 
-                          'PRIMARY KEY (username, repo, path)'
+                          'PRIMARY KEY (tweet_id, username, repo, path)'
                           ');')
 
 
