@@ -1,6 +1,6 @@
 # GitHub Repository Content Scraper
 
-* Data collection process for Tidy Tuesday code on GitHub
+*Data collection process for Tidy Tuesday code on GitHub*
 
 ## Setup
 - Requires base Python 3.7 and a modern version of the pandas library (`pip install pandas`).
