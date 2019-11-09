@@ -1,3 +1,10 @@
+"""
+Iterates through Links DataFrame and scrapes GitHub files or repositories
+into a Sqlite3 Database located at `database.DB_PATH`.
+
+Notes:
+    - Will create the Database if it does not exist.
+"""
 import logging
 import sqlite3
 import os
@@ -41,13 +48,6 @@ def load_links(urls_path: str) -> pd.DataFrame:
 
 
 if __name__ == '__main__':
-    """
-    Iterates through Links DataFrame and scrapes GitHub files or repositories
-    into a Sqlite3 Database located at `database.DB_PATH`.
-    
-    Notes:
-        - Will create the Database if it does not exist.
-    """
     logging.basicConfig(level=logging.INFO)
 
     ITER_LIMIT = 25

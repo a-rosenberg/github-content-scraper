@@ -1,3 +1,6 @@
+"""
+Tools to create, manage and interact with Sqlite3 Database
+"""
 import sqlite3
 import logging
 import os
