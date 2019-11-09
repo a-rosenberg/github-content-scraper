@@ -5,9 +5,9 @@ import pandas as pd
 import shutil
 import datetime
 
-from api import content_scraper
+from api import content_scraper, extract_github_account_info
 import database as db
-import utils
+import configure as config
 
 
 def load_links(urls_path: str) -> pd.DataFrame:
@@ -24,9 +24,9 @@ def load_links(urls_path: str) -> pd.DataFrame:
     df.drop_duplicates(subset=['processed_url'], inplace=True)
 
     url_col = 'processed_url'
-    df['username'] = df[url_col].apply(lambda x: utils.extract_github_account_info(x).username)
-    df['repo'] = df[url_col].apply(lambda x: utils.extract_github_account_info(x).repo)
-    df['path'] = df[url_col].apply(lambda x: utils.extract_github_account_info(x).path)
+    df['username'] = df[url_col].apply(lambda x: extract_github_account_info(x).username)
+    df['repo'] = df[url_col].apply(lambda x: extract_github_account_info(x).repo)
+    df['path'] = df[url_col].apply(lambda x: extract_github_account_info(x).path)
 
     good_rows = ((df[url_col].str.contains('github.com'))
                  & (~df[url_col].str.contains('gist'))
@@ -58,9 +58,9 @@ if __name__ == '__main__':
 
     if REPLACE_DB:
         logging.warning('Removing Database: %s', db.DB_PATH)
-        os.remove(db.DB_PATH)
+        os.remove(config.db_path)
 
-    with db.SqliteConnection(db.DB_PATH) as conn:
+    with db.SqliteConnection(config.db_path) as conn:
         cursor = conn.cursor()
         db.create_table(cursor, definition=db.GIT_CONTENT_DEFINITION)
 
@@ -87,9 +87,9 @@ if __name__ == '__main__':
                     logging.warning('skipping!... github object already in database')
 
     shutil.copy(
-        src=db.DB_PATH,
+        src=config.db_path,
         dst=os.path.join(
             os.path.dirname(__file__),
-            os.path.basename(db.DB_PATH) + datetime.datetime.now().strftime('_%Y%m%d_%H%M%S')
+            os.path.basename(config.db_path) + datetime.datetime.now().strftime('_%Y%m%d_%H%M%S')
         )
     )
