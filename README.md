@@ -9,4 +9,4 @@ containing OAuth credentials created via GitHub account: https://developer.githu
 
 ## Run
 - Call `python run.py`
-- This will create a database named `content.db` or whatever variable is set to in the path at `database.DB_PATH`
+- This will create a database named `content.db` or whatever variable is set to in the path at `configure.db_path`
