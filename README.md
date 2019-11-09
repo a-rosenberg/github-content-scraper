@@ -1,6 +1,6 @@
 # GitHub Repository Content Scraper
 
-*Github Scraper for Tidy Tuesdays data visualization code from shared public repositories*
+*Github Scraper for Tidy Tuesdays data visualization code from shared, public repositories*
 
 ## Setup
 - Requires base Python 3.7 and a modern version of the pandas library (`pip install pandas`).
