@@ -19,11 +19,13 @@ def load_links(urls_path: str) -> pd.DataFrame:
     Returns:
         Cleaned Links DataFrame.
     """
-    df = pd.read_csv(urls_path)
-    df.dropna(subset=['processed_url'], inplace=True)
-    df.drop_duplicates(subset=['processed_url'], inplace=True)
 
+    df = pd.read_csv(urls_path)
     url_col = 'processed_url'
+
+    df.dropna(subset=[url_col], inplace=True)
+    df.drop_duplicates(subset=[url_col], inplace=True)
+
     df['username'] = df[url_col].apply(lambda x: extract_github_account_info(x).username)
     df['repo'] = df[url_col].apply(lambda x: extract_github_account_info(x).repo)
     df['path'] = df[url_col].apply(lambda x: extract_github_account_info(x).path)
@@ -90,6 +92,7 @@ if __name__ == '__main__':
         src=config.db_path,
         dst=os.path.join(
             os.path.dirname(__file__),
+            'data',
             os.path.basename(config.db_path) + datetime.datetime.now().strftime('_%Y%m%d_%H%M%S')
         )
     )
