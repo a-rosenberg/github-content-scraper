@@ -2,6 +2,8 @@ import logging
 import sqlite3
 import os
 import pandas as pd
+import shutil
+import datetime
 
 from api import content_scraper
 import database as db
@@ -18,15 +20,19 @@ def load_links(urls_path: str) -> pd.DataFrame:
         Cleaned Links DataFrame.
     """
     df = pd.read_csv(urls_path)
+    df.dropna(subset=['processed_url'], inplace=True)
+    df.drop_duplicates(subset=['processed_url'], inplace=True)
+
     url_col = 'processed_url'
-    df['match'] = df[url_col].apply(lambda x: bool(utils.extract_github_account_info(x)))
-
-    good_rows = (~df[url_col].str.contains('gist')) & (df['match'])
-    df = df.loc[good_rows]
-
     df['username'] = df[url_col].apply(lambda x: utils.extract_github_account_info(x).username)
     df['repo'] = df[url_col].apply(lambda x: utils.extract_github_account_info(x).repo)
     df['path'] = df[url_col].apply(lambda x: utils.extract_github_account_info(x).path)
+
+    good_rows = ((df[url_col].str.contains('github.com'))
+                 & (~df[url_col].str.contains('gist'))
+                 & (~df['repo'].isna()))
+    df = df.loc[good_rows]
+
     df.reset_index(inplace=True)
 
     return df
@@ -44,9 +50,15 @@ if __name__ == '__main__':
 
     ITER_LIMIT = 25
     SELECT_EXTENSIONS = ['.rmd', '.R']
+    REPLACE_DB = True
 
     urls_path = os.path.join(os.path.dirname(__file__), 'data', 'processed_data.csv')
     links = load_links(urls_path)
+    links.to_csv(os.path.join(os.path.dirname(__file__), 'data', 'links.csv'), index=False)
+
+    if REPLACE_DB:
+        logging.warning('Removing Database: %s', db.DB_PATH)
+        os.remove(db.DB_PATH)
 
     with db.SqliteConnection(db.DB_PATH) as conn:
         cursor = conn.cursor()
@@ -63,7 +75,9 @@ if __name__ == '__main__':
             )
 
             for data in scraper:
-                logging.info('inserting %s/%s/%s',data['username'], data['repo'], data['path'])
+                logging.info('(item: %s) inserting %s/%s/%s', ix, data['username'], data['repo'], data['path'])
+
+                data.update({'url': link['processed_url']})
 
                 try:
                     db.insert(cursor, table='content', data=data)
@@ -72,5 +86,10 @@ if __name__ == '__main__':
                 except sqlite3.IntegrityError:
                     logging.warning('skipping!... github object already in database')
 
-            if ix > 10:
-                break
+    shutil.copy(
+        src=db.DB_PATH,
+        dst=os.path.join(
+            os.path.dirname(__file__),
+            os.path.basename(db.DB_PATH) + datetime.datetime.now().strftime('_%Y%m%d_%H%M%S')
+        )
+    )

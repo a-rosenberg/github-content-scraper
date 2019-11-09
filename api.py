@@ -6,14 +6,19 @@ Notes:
     variable to configure the API call.  Follow these instrucitons to get a key:
     https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/.
 """
-import logging
 import time
 import copy
+import logging
+import requests
+import base64
+import re
 import os
 
-from typing import Dict, List, Optional, Sequence
+from typing import Optional, Dict, NamedTuple, Any, List, Sequence
+from pprint import pprint
+from urllib.parse import quote
 
-import utils
+import ignore
 import configure
 
 
@@ -52,27 +57,32 @@ def content_scraper(username: str,
     if extensions_flag:
         select_extensions = [x.lower() for x in select_extensions]
 
-    initial_response = utils.request_github_content_api(username, repo, path)
-    target_is_file = isinstance(initial_response, dict) and 'content' in initial_response
+    initial_response = request_github_content_api(username, repo, path)
+    target_is_file = isinstance(initial_response, dict)
 
     if target_is_file:
+        # Ignore if item is ~404 "Not Found" message
+        if 'message' in initial_response and initial_response['message'] == 'Not Found':
+            logging.warning('not found, skipping %s/%s ... ', repo, path)
+            return []
 
-        _ext = utils.get_file_extension(path)
+        _ext = get_file_extension(path)
 
         if _ext in select_extensions if extensions_flag else True:
             yield {
                 'path': initial_response['path'],
                 'username': username,
                 'repo': repo,
-                'content': utils.extract_github_content(initial_response),
+                'content': extract_github_content(initial_response),
             }
 
     else:
 
         for item in initial_response:
+
             _type = item['type']
             _path = item['path']
-            _ext = utils.get_file_extension(_path)
+            _ext = get_file_extension(_path)
 
             if _type == 'file':
 
@@ -81,14 +91,9 @@ def content_scraper(username: str,
                     logging.info('file %s skipped because extension type: "%s"', _path, _ext)
                     continue
 
-                response = utils.request_github_content_api(username, repo, path=_path)
+                response = request_github_content_api(username, repo, path=_path)
 
-                # Ignore if item is ~404 "Not Found" message
-                if 'message' in response and response['message'] == 'Not Found':
-                    logging.warning('not found, skipping %s/%s ... ', repo, path)
-                    continue
-
-                item_content = utils.extract_github_content(response)
+                item_content = extract_github_content(response)
 
                 yield {
                     'path': _path,
@@ -126,3 +131,146 @@ def content_scraper(username: str,
                 logging.warning('limit of files per repo reached: %s', iter_limit)
                 break
 
+
+def request_github_content_api(username: str,
+                               repo: str,
+                               path: Optional[str] = None,
+                               client_id: Optional[str] = ignore.client_id,
+                               client_secret: Optional[str] = ignore.secret_key) -> Optional[Dict]:
+    """Wrapper for Github Content API request
+
+    Args:
+        username: Target GitHub repository owner.
+        repo: GitHub repository name.
+        path: Optional path to a starting point within a repository.  Used
+            to allow recursion for crawling directory structures. Defaults
+            to None.
+        client_id:
+        client_secret:
+
+    Notes:
+        Applies quoting to username, repo and path when building request URL.
+
+    Returns:
+        Python internal representation of API JSON response.
+    """
+    _path = path if path else ''
+
+    api_url = f'https://api.github.com/repos/{quote(username)}/{quote(repo)}/contents/{quote(_path)}'
+
+    if client_id and client_secret:
+        api_url += f'?client_id={client_id}&client_secret={client_secret}'
+
+    logging.info('requesting %s ... ', api_url)
+    data = request_json(api_url)
+    return data
+
+
+def request_json(url: str) -> Dict:
+    """Wrapper for HTML request to a JSON endpoint.
+
+    Args:
+        url: Valid and formed web address for API.
+
+    Returns:
+        API Response as JSON.
+    """
+    raw_ = requests.get(url)
+    return raw_.json()
+
+
+def extract_github_content(response: Dict) -> str:
+    """Strips
+
+    Args:
+        response:
+
+    Returns:
+
+    """
+    try:
+        content = response['content']
+    except KeyError:
+        pprint(response)
+        raise RuntimeError("'content' not a key in response JSON")
+
+    return str(decode(content))
+
+
+def decode(x: str, encoding: str = 'utf-8') -> str:
+    """Decode base64 string
+
+    Args:
+        x: Target base64 encrypted sequence.
+        encoding: Python standard encoding label. Defaults
+            to 'utf-8'.
+
+    Returns:
+        Decoded string sequence.
+    """
+    byte_str = base64.b64decode(x)
+    return byte_str.decode(encoding)
+
+
+def get_file_extension(path: str) -> str:
+    """
+
+    Args:
+        path:
+
+    Returns:
+
+    """
+    return os.path.splitext(path)[-1].lower()
+
+
+class GithubObject(NamedTuple):
+    """
+
+    """
+    url: str
+    username: Optional[str]
+    repo: Optional[str]
+    path: Optional[str]
+
+
+def extract_github_account_info(url: str) -> Any:
+    """
+    Notes:
+        Assumes people are giving us master branches.
+
+    Args:
+        url:
+
+    Returns:
+
+    """
+    regex = re.compile(r'.+github.com/(.+?)/(.+?)(/.*)?$')
+    match = regex.match(url)
+
+    if match:
+
+        username = match.group(1)
+        repo = match.group(2)
+        path = match.group(3)
+
+        if path:
+            test = re.match(r'.+master/(.+)', path)
+            path = test.group(1) if test else path
+
+        github_obj = GithubObject(
+            url=url,
+            username=username,
+            repo=repo,
+            path=path,
+        )
+
+    else:
+        github_obj = GithubObject(
+            url=url,
+            username=None,
+            repo=None,
+            path=None,
+        )
+
+    return github_obj
