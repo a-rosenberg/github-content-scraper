@@ -1,0 +1,183 @@
+---
+output:
+  md_document:
+    variant: markdown_github
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "README-"
+)
+```
+
+## Installation
+
+This package isn't on CRAN, so you'll need to use the devtools package to install it.
+
+```r
+# If you don't have devtools installed
+install.packages("devtools")
+
+devtools::install_github("alexhallam/gumballthemes")
+
+# To include the vignette
+devtools::install_github("alexhallam/gumballthemes", build_vignettes=TRUE)
+```
+
+# Introduction
+
+The  **gumballthemes** package has three goals/motivations.
+
+1. Quantile frames - for quick insights
+2. Color blind friendly colors - be a decent human being, make plots everyone can interpret
+3. Readable Fonts - easy reading as asthetics (not implimented yet)
+
+## Base Theme
+
+This is a basic example which shows how to use this theme.
+
+```{r, include=FALSE}
+library(grid)
+library(tidyverse)
+library(gumballthemes)
+```
+
+
+```{r example, eval=F}
+## basic example code
+p <- mtcars %>%
+  as_tibble() %>%
+  ggplot(aes(y = wt, x = mpg)) +
+  geom_point() +
+  geom_quantileframe() +
+  scale_y_quantile(mtcars$wt) +
+  scale_x_quantile(mtcars$mpg, digits = 1) +
+  ylab("Weight (tons)") +
+  xlab("Fuel efficiency (mpg)") +
+  scale_color_gumball() +
+  theme_gumball() +
+  guides(col = guide_legend(ncol= 6)) 
+
+p %>% ggsave(filename = "basic_img.JPG", height = 3.5, width = 5.95)
+```
+
+![](basic_img.JPG)
+
+The above plots uses all of the functions currently provided by `gumballthemes`:
+
+`scale_y_quantile` 
+
+`scale_x_quantile`
+
+`theme_gumball`
+
+The data-pixel ratio is high in the above plot. The range of each of the axes 
+are the min and max values. The thick bar represents the 25th, 50th (aka median), 
+and 75th percentiles. The axes are essentially simple boxplots.
+
+## Base Theme With `hrbrthemes` for better fonts
+
+`hrbrthemes` offers opinionated, typographic-centric ggplot2 themes. These can be combined with `geom_quantileframe` plots. The result is a plots with cleaner text.
+
+
+```{r}
+library(extrafont)
+p <- mtcars %>%
+  as_tibble() %>%
+  ggplot(aes(y = wt, x = mpg)) +
+  geom_point() +
+  geom_quantileframe() +
+  scale_y_quantile(mtcars$wt) +
+  scale_x_quantile(mtcars$mpg, digits = 1) +
+  ylab("Weight (tons)") +
+  xlab("Fuel efficiency (mpg)") +
+  scale_color_gumball() +
+  hrbrthemes::theme_ipsum(grid = F) +
+  guides(col = guide_legend(ncol= 6))
+
+p %>% ggsave(filename = "basic_hrbrh_img.JPG", height = 3.5, width = 5.95)
+```
+
+![](basic_hrbrh_img.JPG)
+
+## Base Theme + Viridis color
+
+The viridis package is usefull for producing themes that are color blind friendly
+
+```{r}
+p <- mtcars %>%
+  as_tibble() %>%
+  ggplot(aes(y = wt, x = mpg, color = factor(carb))) +
+  geom_point() +
+  geom_quantileframe() +
+  scale_y_quantile(mtcars$wt) +
+  scale_x_quantile(mtcars$mpg, digits = 1) +
+  ylab("Weight (tons)") +
+  xlab("Fuel efficiency (mpg)") +
+  scale_color_gumball() +
+  theme_gumball()+
+  guides(col = guide_legend(ncol= 6)) 
+
+p %>% ggsave(filename = "basic_color_img.JPG", height = 3.5, width = 5.95)
+```
+
+
+![](basic_color_img.JPG)
+
+## Time Series
+
+There may also be opportunity or a quntile frame on the y-axis only 
+on time-series plots.
+
+The below example requiers an [API key from FRED](https://research.stlouisfed.org/docs/api/api_key.html). 
+
+```{r, echo=F, include=FALSE}
+library(fredr)
+fredr_set_key("c1856e7bf91eaca807aa6584e2614397")
+```
+
+```{r}
+#library(fredr)
+#fredr_set_key("abcdefghijklmnopqrstuvwxyz123456")
+unrate <- fredr_series_observations(
+  series_id = "UNRATE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = as.Date("2018-04-01"),
+  frequency = "q",
+  units = "chg"
+)
+
+unrate %>% glimpse()
+```
+
+```{r}
+p <- unrate %>% 
+  ggplot(aes(y = value, x = date)) +
+  geom_line() +
+  geom_quantileframe(sides = "l") +
+  scale_y_quantile(unrate$value) + 
+  scale_x_date(date_breaks = "5 year", date_labels = "%Y") +
+  ylab("Change In UNRATE") +
+  xlab("") +
+  annotate("text", y = 1.0, x = as.Date("1997-01-01"),
+           label = "Change in UNRATE\nis normally between\n0.07% and -.20% with a\nmedian of -0.07") +
+  guides(col = guide_legend(ncol= 6)) +
+  scale_color_gumball() +
+  theme_gumball()
+
+p %>% ggsave(filename = "time_series.JPG", height = 3.5, width = 5.95)
+```
+
+![](time_series.JPG)
+
+## Related Work
+
+[hrbrthemes](https://github.com/hrbrmstr/hrbrthemes)
+
+[ggthemes](https://github.com/jrnold/ggthemes)
+
+[ggplot2](https://ggplot2.tidyverse.org/)

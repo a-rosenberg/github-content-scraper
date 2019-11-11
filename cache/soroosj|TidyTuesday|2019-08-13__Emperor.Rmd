@@ -1,0 +1,144 @@
+---
+   title: "Roman Emperors"
+   author: "Joel Soroos"
+   date: "August 18, 2019"
+   output: pdf_document
+---
+
+
+### 1. Source 
+```{r source, warning = TRUE, results = FALSE, message = FALSE}
+
+   library (tidyverse)
+   library (janitor) 
+
+   emperors_raw <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-13/emperors.csv") %>%
+      clean_names () %>%
+      drop_na (birth)
+```
+
+
+### 2a.  Transform data - count by death cause
+```{r, warning = TRUE, results = FALSE, message = FALSE}
+
+   library (glue)
+
+   emperor_cause <- emperors_raw %>%
+      filter (era == "Principate") %>%
+      mutate (cause = fct_lump (cause,4)) %>%
+      count (cause, sort = TRUE) %>%
+      mutate (cause_long = glue ("{cause} ({n})")) %>%
+      select (cause, cause_long)
+```
+
+   
+### 2b.  Transform data - calculate reign ages
+```{r source, warning = TRUE, results = FALSE, message = FALSE}
+   
+   library (lubridate)
+
+   emperors <- emperors_raw %>%
+      filter (era == "Principate") %>%
+      mutate (
+         birth = case_when (
+            index %in% c(1,2,4,6) ~ update (birth, year = - year (birth)),
+            TRUE~ birth
+            ),
+        reign_start = case_when (
+            index %in% c(1) ~ update (reign_start, year = - year (reign_start)),
+            TRUE~ reign_start
+            ),
+         reign_start_age = (reign_start- birth)/365.25,
+         reign_end_age = (reign_end - birth)/365.25,
+         reign_length = (reign_end - reign_start)/365.25,
+         cause = fct_lump (cause, 4)
+      ) %>%
+      #add count of emperor death cause to death cause
+      right_join (emperor_cause) %>%
+      select (index, name, birth, death, reign_start_age, reign_end_age, reign_length, cause_long, cause) 
+```
+
+
+### 3. Visualize data
+```{r plot}
+
+   ggplot( data = emperors) +
+      #reign segments and death age points
+         geom_segment(
+            aes(
+               x = reign_start_age, 
+               xend = reign_end_age, 
+               y = reorder(name, -reign_end_age), 
+               yend = name
+               ),
+            alpha = 0.15, color = "black" 
+            ) +
+         geom_point(
+            aes(y=name, x=reign_end_age, color = cause_long),
+            size = 1
+            ) +
+      #youngest reign annotation
+         annotate("text",
+            label = "Youngest\nreign",
+            size = 3, hjust = 0.5, family = "Trajanus Roman", color = "black",
+            x = 12, y = 36 
+            ) +
+         geom_curve(
+            aes(x = 12, xend = 12, y = 37,  yend = 38.6),
+            arrow = arrow(length = unit(0.1, "cm")), 
+            size = 0.1, color = "black", curvature = 0, alpha = 0.07
+            ) +
+      #last reign annotation
+         annotate("text",
+            label = "Final reign",
+            size = 3, hjust = 0.5, family = "Trajanus Roman", color = "black",
+            x = 49, y = 23
+            ) +
+         geom_curve(
+            aes(x = 50.5, xend = 52.4, y = 23.2, yend = 24),
+            arrow = arrow(length = unit(0.1, "cm")), 
+            size = 0.1, color = "black", curvature = -0.3, alpha = 0.07
+            ) +
+      #longest reign annotation
+         annotate("text",
+            label = "Longest reign",
+            size = 3, hjust = 0.5, family = "Trajanus Roman", color = "black",
+            x = 31.5, y = 5, xmax = 36  
+            ) +
+         geom_curve(
+            aes(x = 36.2, xend = 38, y = 4.8, yend = 4.2),
+            arrow = arrow(length = unit(0.1, "cm")), 
+            size = 0.1, color = "black", curvature = -0.3, alpha = 0.07
+            ) +
+      #scales
+         scale_x_continuous(
+            breaks = c(20, 40, 60, 80),
+            labels = c("XX", "LIX", "LX", "LXXX")
+            ) +
+         scale_color_brewer(palette = "Set1") +
+      theme (
+         plot.title = element_text(hjust = 0.5, vjust = 0, size = 16, face = "bold"),
+         plot.subtitle = element_text(hjust = 0.5, vjust = 1, size = 12, face = "bold"),
+         plot.caption = element_text (hjust = 0, size = 10),
+         plot.background = element_rect(fill = "#fdf6e3"),
+         panel.background = element_rect(fill = "#fdf6e3"),     
+         panel.grid = element_blank (),
+         text = element_text(family = "Trajanus Roman", color = "black", face = "bold"),   #download font from https://www.fontspace.com/roger-white/trajanus-roman
+         axis.title.x = element_text (hjust = 0.5),
+         axis.text.x = element_text (size = 8),
+         axis.title.y = element_blank (),
+         axis.ticks = element_blank (),
+         legend.background = element_rect(fill = "#fdf6e3"),
+         legend.title = element_blank(),
+         legend.position = c(0.85,0.88),
+         legend.key.size = unit(0.1, 'lines')
+         ) +
+      labs(
+         title = "Roman Emperor Principate Era (62 BCE to AD 283)",
+         subtitle = "They ruled history's largest empire but often died brutally.\n\n",
+         caption = "\nLines represent the beginning through ending age of each emperor's reign.\nData: Wikipedia   Visualization: Joel Soroos @soroosj",
+         x = "\nAge (Years)"
+         ) +
+     ggsave("emperors.png", width = 20, units = "cm")
+```
+

@@ -1,0 +1,76 @@
+---
+title: "TTW5"
+output: html_notebook
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+library(ggthemes)
+```
+
+```{r}
+acs <- read_csv("../data/acs2015_county_data.csv")
+
+glimpse(acs)
+```
+
+```{r}
+md <- read_csv("acs2015_county_data_md.csv")
+View(md)
+```
+
+```{r, fig.width=12, fig.height=6}
+sub_group <- "income"
+
+acs[, c("Poverty",
+        md %>% filter(subgroup == sub_group) %>% pull(variable))] %>% 
+  gather(key = "subgroup", value = "Dollars", md %>% filter(subgroup == sub_group) %>% pull(variable))%>% 
+  ggplot(aes(x = Poverty, y = Dollars, col = subgroup)) + 
+  geom_point(shape = ".") +
+  geom_smooth(se = FALSE) +
+  scale_color_brewer(palette = "Dark2") +
+  facet_grid(subgroup ~ ., scales = "free_y") +
+  labs(title = "Income versus poverty", x = "Poverty in %")
+```
+
+```{r, fig.width=12, fig.height=6}
+sub_group <- "industry"
+
+acs[, c("Poverty",
+        md %>% filter(subgroup == sub_group) %>% pull(variable))] %>% 
+  gather(key = "subgroup", value = "Percentage", md %>% filter(subgroup == sub_group) %>% pull(variable)) %>% 
+  ggplot(aes(x = Poverty, y = Percentage, col = subgroup)) + 
+  geom_point(shape = ".") +
+  geom_smooth(se = FALSE) +
+  scale_color_brewer(name = "Industry", palette = "Dark2") +
+  # facet_grid(subgroup ~ ., scales = "free_y") +
+  labs(title = "Industry versus poverty", x = "Poverty in %")
+```
+
+
+
+```{r, fig.width=12, fig.height=6}
+sub_group <- "sector"
+
+acs[, c("Poverty",
+        md %>% filter(subgroup == sub_group) %>% pull(variable))] %>% 
+  gather(key = "subgroup", value = "Percentage", md %>% filter(subgroup == sub_group) %>% pull(variable)) %>% 
+  ggplot(aes(x = Poverty, y = Percentage, col = subgroup)) + 
+  geom_point(shape = ".") +
+  geom_smooth(se = FALSE) +
+  scale_color_brewer(name = "Sector", palette = "Dark2") +
+  # facet_grid(subgroup ~ ., scales = "free_y") +
+  labs(title = "Sector versus poverty", x = "Poverty in %") + 
+  theme_hc()
+```
+
+
+
+
+

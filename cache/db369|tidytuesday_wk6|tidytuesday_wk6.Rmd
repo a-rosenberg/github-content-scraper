@@ -1,0 +1,178 @@
+---
+title: "TidyTuesday - Week 6"
+subtitle: "Global coffee-chain locations (as of 2017 or 2018)"
+author: '@DaveBloom11'
+date: "May 7, 2018"
+output: markdown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(wesanderson)
+library(extrafont)
+#library(emojifont)
+```
+
+
+## Import data
+```{r}
+sbux <- readxl::read_xlsx("data/week6_coffee_chains.xlsx", sheet = 1)
+th <- readxl::read_xlsx("data/week6_coffee_chains.xlsx", sheet = 2)
+dd <- readxl::read_xlsx("data/week6_coffee_chains.xlsx", sheet = 3)
+
+
+```
+
+```{r}
+
+dd_by_zip <- dd %>% 
+  group_by(e_postal) %>%
+  summarize(dd = n())
+dd_by_zip$Postcode <- as.character(dd_by_zip$e_postal)
+
+th_by_zip <- th %>%
+  group_by(postal_code) %>%
+  summarize(th = n())
+th_by_zip$Postcode <- as.character(th_by_zip$postal_code)
+
+df <- sbux %>%
+  group_by(Postcode, City, `State/Province`) %>%
+  summarize(sbux = n(), city = unique(City), state = unique(`State/Province`),
+            city_state = paste0(str_to_title(city),", ",state," ",unique(Postcode))) 
+
+df <- inner_join(df, dd_by_zip, by = "Postcode")
+df <- inner_join(df, th_by_zip, by = "Postcode")
+
+glimpse(df)
+
+# drop incorrectly included / duplicate rows
+df <- df[!(df$state %in% c("48","BI")),]
+df <- df[!(df$city %in% c("Mexico","MEXICO","Taylor", "Gahanna", "Ft Wayne")),]
+
+```
+
+
+```{r}
+
+sumsq <- function(shares) {
+  temp <- 0
+  for (sh in shares){
+    temp <- temp + sh^2
+  }
+  return(temp)
+}
+
+df <- df %>%
+  group_by(Postcode) %>%
+  mutate(total = sum(sbux,dd,th),
+         sbux_share = 100 * sbux / total,
+         dd_share = 100 * dd / total,
+         th_share = 100 * th / total,
+         hhi = sumsq(c(sbux_share,dd_share,th_share)))
+
+```
+
+```{r fig.height=7}
+
+pal <- wes_palette(n_distinct(df$state), name = "Darjeeling2", type = "continuous")
+
+plot <- df %>%
+  ggplot(aes(x = fct_reorder(city_state,hhi), y = hhi, col = state)) +
+  geom_point(size = 3) +
+  coord_flip() +
+  theme_light() +
+  scale_colour_manual(values = pal, name = "State") +
+  labs(title = "Concentration of global coffee-chains (as of 2017 or 2018)",
+       subtitle = "Selected markets (by zip code) containing Starbucks, Tim Hortons, and Dunkin Donuts",
+       x = "Location", y = "Concentration (HHI)",
+       caption = "By @DaveBloom11\nSources: kaggle.com, timhortons.com, odditysoftware.com") +
+  theme(text = element_text(family = "Times New Roman", color = "#22211d"),
+        plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+        panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+        legend.background = element_rect(fill = "#f5f5f2"),
+        legend.key = element_rect(fill = "#f5f5f2"),
+        plot.caption = element_text(size = 6))
+plot
+ggsave("concentration.jpg", dpi=300)
+```
+
+```{r fig.height=8}
+library(ggplot2)
+source("geom_coffee.R")
+
+df <- df %>% 
+  mutate(dominant_share = case_when(
+    sbux_share > th_share && sbux_share > dd_share ~ "Starbucks",
+    th_share > sbux_share && th_share > dd_share ~ "Tim Hortons",
+    dd_share > sbux_share && dd_share > th_share ~ "Dunkin Donuts",
+    TRUE ~ "None"
+  ))
+
+df$dominant_share <- factor(df$dominant_share, levels = c("Starbucks", "Tim Hortons", "Dunkin Donuts", "None"))
+
+dark_plot <- df %>%
+  ggplot(aes(col = dominant_share)) +
+  #geom_segment(aes(x = fct_reorder(city_state,hhi), xend = fct_reorder(city_state,hhi), y = 0, yend = hhi), size = 1) +
+  #geom_point(aes(x = fct_reorder(city_state,hhi), y = hhi), size = 4) +
+  #geom_point(aes(x = fct_reorder(city_state,hhi), y = hhi), size = 1.5, color = "#252525") +
+  geom_coffee(aes(x = fct_reorder(city_state,hhi), y = hhi), size = 8) +
+  coord_flip() +
+  #theme_void() +
+  scale_colour_manual(values = c("Starbucks" = "#006341", "Tim Hortons" = "#AC1F2D", "Dunkin Donuts" = "#F5821F","None" = "#DDDDDD"), name = "Coffee chain with\nhighest market share") +
+  #guides(colour = guide_legend(override.aes = list(size = 8, shape = '\u2615'))) +
+  #scale_color_viridis_d()+
+  #rcartocolor::scale_color_carto_d(palette = "Vivid", name = "State") +
+  labs(title = "Concentration of global coffee-chains (as of 2017 or 2018)",
+       subtitle = "Selected markets (by zip code) containing Starbucks, Tim Hortons, and Dunkin Donuts",
+       x = "Location", y = "Concentration (HHI)",
+       caption = "By @DaveBloom11\nSources: kaggle.com, timhortons.com, odditysoftware.com") +
+  theme(text = element_text(family = "Bitstream", color = "#F2F1Fd"),
+        panel.grid = element_blank(),
+        plot.background = element_rect(fill = "#050502", color = NA), 
+        panel.background = element_rect(fill = "#202020", color = NA), 
+        axis.text = element_text(size = 11, family = "Bitstream", color = "#F2F1Fd", hjust = 1),
+        legend.background = element_rect(fill = "#050502"),
+        legend.key = element_rect(color = "#050502", fill = "#050502"),
+        plot.title = element_text(size = 16),
+        plot.caption = element_text(size = 6))
+dark_plot
+
+ggsave("concentration_dark.jpg", dpi=300)
+
+```
+
+```{r fig.height=9}
+
+dark_plot2 <- df %>%
+  ggplot(aes(x = fct_reorder(city_state,hhi), y = hhi)) +
+  geom_text(label = "", aes(col = dominant_share), size=5) +
+  coord_flip() +
+  scale_colour_manual(values = c("Starbucks" = "#006341", "Tim Hortons" = "#AC1F2D", "Dunkin Donuts" = "#F5821F","None" = "#BBBBBB"), name = "Coffee chain with\nhighest market share") +
+  labs(title = "Concentration of global coffee-chains (as of 2017 or 2018)",
+       subtitle = "Selected markets (by zip code) containing Starbucks, Tim Hortons, and Dunkin Donuts",
+       x = "Location", y = "Concentration (HHI)",
+       caption = "By @DaveBloom11\nSources: kaggle.com, timhortons.com, odditysoftware.com") +
+  theme(text = element_text(family = "Bitstream", color = "#F2F1Fd"),
+        panel.grid = element_blank(),
+        plot.background = element_rect(fill = "#050502", color = NA), 
+        panel.background = element_rect(fill = "#202020", color = NA), 
+        axis.text = element_text(size = 11, family = "Bitstream", color = "#F2F1Fd", hjust = 1),
+        legend.background = element_rect(fill = "#050502"),
+        legend.key = element_rect(color = "#050502", fill = "#050502"),
+        plot.title = element_text(size = 16),
+        plot.caption = element_text(size = 6))
+dark_plot2
+
+ggsave("concentration_dark_2.jpg", dpi=300)
+
+
+
+```
+
+
+
+```{r}
+df
+```
+

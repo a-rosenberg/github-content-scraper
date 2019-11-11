@@ -1,0 +1,243 @@
+---
+title: "Data Visualizations"
+author: "Theresa Elise Wege"
+subtitle: Intro to the ggplot2 package
+output:
+  html_notebook:
+    theme: united
+    toc: yes
+    toc_float: yes
+    toc_depth: 1
+  toc: default
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 1
+---
+
+
+#Welcome to data visualization with ggplot!
+
+
+
+## tidyverse recap
+s
+*ggplot2* is a R package build for data visualization. It is part of the *tidyverse*. If you haven't been to my Introduction to tidy data workshop, you can catch up on some of the background, checking out the [material](https://github.com/fingertipsy/tidyverse-introduction-workshop-2018) on my github.
+
+When we install the tidyverse package, ggplot2 is actually already included and we don't have to install it additionally.
+You can install the tidyverse package by running `install.packages('tidyverse')` in your Rstudio console. Remember you can run the line (or chunk) of code in your script by clicking on it and using the shortcut cmd+enter
+After installing the package it is in our library. If we want to use it in a R script now, we need to load it from our library by running this code.
+
+```{r}
+library(tidyverse)
+```
+
+
+In the tidy data workshop I explained how working with the tidyverse and using the pipe operator is just like baking bread.
+
+> The pipe operator allows you to build a pipeline of different operations and pipe your data through it. To understand this you can imagine baking bread. If you do it by hand you will go through different steps that all lead you to an interim result, which you use for the next step: you mix the ingredients and get dough -> you put the dough in a form and let it grow -> you shape the grown dough -> you put the shaped dough and the oven and bake it -> you take the bread out.
+
+> Wouldn't it be great to just put the ingredients in a machine and you take the ready baked bread out? You won't be bothered with the interim results. This is basically what the pipe operator does to your code. You put an object like a dataset in and all the functions will be applied in order, but no intermin results are stored and the output is your final result. 
+
+Here is an example to remind you how we can use the pipe operator to exectue a series of steps chained together to one piece of code.
+We want to read in the dataset for today, rename a variable with a super long name and transform the variable on another scale. In green are some comments. The actual code is black. remember that you can add text within code by intialising a comment with `#`.
+
+```{r, warning=FALSE, message=FALSE}
+#without the pipe
+data <- read_csv("/Users/sctew/Desktop/week19_airline_safety.csv") #import the .csv file and save it in an object called data. Of course your filepath will be different from this one.
+
+data <- rename(data, seat_km = avail_seat_km_per_week) # rename the variable avail_seat_km_per_week in seat_km
+
+data <- mutate(data, seat_km = seat_km/1000000000) #for readability: transform the count in billion seats per kilometer
+
+#with saving each result again as data we are overwriting the previous dataset
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+#with the pipe
+
+data <- 
+  read_csv("/Users/sctew/Desktop/week19_airline_safety.csv") %>% #we take this as the input in our pipeline
+  rename(seat_km = avail_seat_km_per_week) %>% #in this step of the pipeline we shorten the variable name
+  mutate(seat_km = seat_km/1000000000) #we take the result from the previous step and apply for readability: transform the count in billion seats per kilometer
+
+#the result of piping the original data through all the command is stored in data and we are not bothered with the interim results
+```
+
+## How ggplot works
+
+To stick with the bread metaphor: ggplot comes to play after we piped our ingredients through a chain of commands and we got a nice bread. I like to think that using ggplot on our data is like taking the bread and making a sandwich. 
+
+![](/Users/sctew/Downloads/sandwich-2708463_1280.png)
+Let's have a look at this piece of code and the way in which it is like a sandwich:
+
+```{r eval=FALSE, error=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+data %>% #this is our good old data wrangling with the pipe. We are putting ingredients in and then pufff BREAD!
+  filter(...) %>% 
+  summarize(...) %>% #now we take that bread and pipe it again (we could also save it as an object and then pipe that object)
+  
+ggplot(aes(x, y))  #we pipe it into ggplot, which is our sandwich maker. ggplot also wants to know what kind of sandwich we want. Specifying the aesthetics (basically what goes on the axis) is like saying we want a Tomato-Hoummus Sandwich. 
+
++ # Now ggplot knows the flavour of the sanwich, but we still need some instructions on how to make that sandwich. We add instruction with a + sign
+  
+  geom_bar() #a basic instruction is called a geom, which basically decides how the plot (sandwich) will look like in the end
+```
+
+We can add many more instructions to make more sophisticated and defined plots. Basically the difference between putting Tomato and Hoummus on bread at home and what they would do in a really nice restaurant.
+
+Just like with making sandwiches the order in which we follow the instructions matters. ggplot puts new instructions on top of the last result. 
+
+Now you are ready to make your first ggplot sandwiches!
+You can find a set of all the basic instructions in the ggplot2 cheat sheet either online or in the help tab in RStudio: Help -> Cheatsheets
+
+#Tasks {.tabset}
+
+Here are some tasks in which you can use the tidyverse packages dplyr (to wrangle your data) and ggplot2 to recreate some plots. Start with Task 1 as the tasks build on each other and there are less and less detailed instructions. 
+
+The data we loaded when doing a recap of the tidyverse is the data we will work with for these tasks. Make sure you have the object data in your environment and the variable name and scale has been changed. Just in case you can run the code to load the data again.
+
+This dataset contains data about security incidents for 56 airlines between 1985-2014. We do have information on the availbale seat kilometers flown every week and how many incidents/ fatal accidents / fatalities happened in the year ranges '85-'99 and '00-'14. 
+You should see all the variables, whenclicking on the blue arrow next to data in your environment. You can also inspect the dataset by doubleclicking on it or running `View(data)`. Make yourself familiar with the format of this data.
+
+In the tasks you can try to recreate the different plots. Before starting the task, please scroll up to the top of the document and click the *code* button. Now select "Hide all code". This will minimize all code chunks in this document. If you want to see a code chunk again you can click on the buttons for each code chunk to display them again. 
+
+For every task the code chunk with the code that produced the plot is now hidden. Try to write the code yourself! It will be most beneficial for your learning if you spend time to find the solution without checking the answer right away.
+
+If you struggle to reproduce the code, you will also learn from trying to understand why the example code produces the code and why the plot from your own code looks different. Use the cheat sheet or any web resources and try to find out what specific arguments in the code do by changing them or disabeling them by turning them into a comment with adding a `#`.
+
+##Task 1 
+
+### Are there less fatal accidents in the more recent time than in the 80s-90s?
+
+Take your data as the ingridient and create a pipeline where you 
+
+1. `filter()` the data for *"fatal_accidents"* as the *type of event* (check the dplyer cheat sheet for more infos on how to do that)
+
+2. command a `ggplot()` to have the *year_range* on the x axis and the *n_events* on the y axis (check the ggplot2 cheat sheet for more infos on how to do that)
+
+  - add an instruction (geom)  to your ggplot, which creates a dotplot (`geom_dotplot()`) with the specifications `(binaxis= "y", stackdir = "center")`. See also on the cheat sheet.
+  
+```{r} 
+data %>% 
+  filter(type_of_event == "fatal_accidents") %>% 
+ggplot (aes(year_range, n_events)) +
+  geom_dotplot(binaxis= "y", stackdir = "center")
+
+```
+
+##Task 2 
+
+### Is there a relationship between the available seats/km (in billions) and the number of incidents?
+
+- What do you need to `filter()` for now?
+- What order to you need to have for your variables in the *ggplot aesthetic* `ggplot(aes())`?
+- This plot is made with adding two instructions / geoms. Which *geoms* need to be added to get this plot? How does the *order* of adding these geoms change the looks of the plot?
+- Finally looking at the plot: Is there a relationship? Given the information is the plot: What might be an interesting follow-up question we could explore in this data?
+
+
+```{r}
+data %>% 
+  filter(type_of_event == "incidents") %>% 
+ggplot (aes(seat_km, n_events)) +
+  geom_point() +
+  geom_smooth()
+```
+## Task 3 
+
+### How many events happend for each airline between '85-'14? Which airline had the most safety events?
+
+To answer this question, we need to `summarize()` our data first, so that we get a new dataset containing all airlines and the total number of events. 
+
+1. First, try to figure out how to achive this with using the `group_by()` and `summarize()` functions from the dplyr package and the `sum()` funtion to add up values in one variable. 
+*Google is your friend!* A very important coding skill is using the resources around the web to find solutions yourself.
+I'm here to point you in the right direction or help you with the code, but even better: ask the person next to you (aka your new friend) and figure it out together!
+
+
+2. Well done for getting this result! Now pipe it in a *ggplot* function to plot the total events/airline and add a `geom_bar(stat = "identity)` instruction
+
+3. Why does this look weird? Check the ggplot2 cheat sheet to find out what next instruction to add to make your plot look like this one.
+
+```{r}
+data %>% 
+  group_by(airline) %>% 
+  summarize(total_events = sum(n_events)) %>% 
+  print() %>% 
+  ggplot(aes(airline, total_events)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+# OR you maybe did it in two seperate steps and saved the summary dataset as a new object
+
+# summary <-
+ #  data %>% 
+ #  group_by(airline) %>% 
+ # summarize(total_events = sum(n_events)) %>% 
+ # print() OR View() OR neither if you just click on summary in your environment to see what the dataframe looks like
+
+# summary %>% 
+  # ggplot(aes(airline, total_events)) +
+  #  geom_bar(stat = "identity") +
+  #  coord_flip()
+
+```
+## Task 4 
+
+### How many of the different types of events happend within our two time periods?
+
+Make a first more advanced plot. 
+
+- Try to replicate this plot without any further instructions only using the ggplot2 cheat sheet. 
+
+- You can do it!
+
+```{r}
+data %>% 
+  ggplot(aes(year_range, n_events, fill = year_range)) +
+  geom_violin() +
+  facet_wrap(~type_of_event, scales = "free_y")
+```
+
+# What else is possible using ggplot2?
+
+This dataset is taken from the [*FiveThirtyEight package*](https://cran.r-project.org/web/packages/fivethirtyeight/index.html).
+FiveThirtyEight.com is a data journalism website, publishing data driven articles and analyses. 
+
+You can find the article about the airline safety data [here.](https://fivethirtyeight.com/features/should-travelers-avoid-flying-airlines-that-have-had-crashes-in-the-past/)
+
+These are some graphs that are included in this article and that can be replicated using ggplot:
+
+![](/Users/sctew/Downloads/silver-datalab-airlines-safety-3.png) 
+
+![](/Users/sctew/Downloads/silver-datalab-airlines-safety-21.png)
+
+## More practice?!
+
+If you want to practice data visualization with ggplot with interesting datasets every week and within a very supportive online community, check out #TidyTuesday on twitter or on their [github.](https://github.com/rfordatascience/tidytuesday)
+
+Learners at every level from around the world create visualizations for a new datset every week and share their results, code and experience on twitter. 
+
+Check out these tweets from people working with our airline security dataset:
+
+<blockquote class="twitter-tweet" data-lang="de"><p lang="en" dir="ltr">Bit tardy for this weeks <a href="https://twitter.com/hashtag/tidytuesday?src=hash&amp;ref_src=twsrc%5Etfw">#tidytuesday</a>! Apart from plotting, I learnt the names of each country&#39;s flag carrier 😬I quickly divided the airlines by continent and alliance partnerships (because I can!). Travelling is safe these days, no matter which continent/alliance you choose! 😬 <a href="https://t.co/axLdzRoKte">pic.twitter.com/axLdzRoKte</a></p>&mdash; Meenakshi Srinivasan 🐠 (@srini_meen) <a href="https://twitter.com/srini_meen/status/1028448315208294400?ref_src=twsrc%5Etfw">12. August 2018</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"> </script> 
+
+
+
+<blockquote class="twitter-tweet" data-lang="de"><p lang="en" dir="ltr"><a href="https://twitter.com/hashtag/TidyTuesday?src=hash&amp;ref_src=twsrc%5Etfw">#TidyTuesday</a> week 19 looking at airline safety from 1985-2014. The good news is airlines seem to be improving. Can&#39;t get enough of the <a href="https://twitter.com/hashtag/paletteer?src=hash&amp;ref_src=twsrc%5Etfw">#paletteer</a> package! So many cool palettes to choose from <a href="https://twitter.com/hashtag/rstats?src=hash&amp;ref_src=twsrc%5Etfw">#rstats</a> <a href="https://twitter.com/hashtag/SoDS18?src=hash&amp;ref_src=twsrc%5Etfw">#SoDS18</a> <a href="https://twitter.com/hashtag/tidyverse?src=hash&amp;ref_src=twsrc%5Etfw">#tidyverse</a> <a href="https://t.co/lXpfKRMQMF">pic.twitter.com/lXpfKRMQMF</a></p>&mdash; David Smale (@committedtotape) <a href="https://twitter.com/committedtotape/status/1027554137158893568?ref_src=twsrc%5Etfw">9. August 2018</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script> 
+
+
+<blockquote class="twitter-tweet" data-lang="de"><p lang="en" dir="ltr">Week 19 of <a href="https://twitter.com/hashtag/TidyTuesday?src=hash&amp;ref_src=twsrc%5Etfw">#TidyTuesday</a>! Didn&#39;t have too much time to spend on this week unfortunately. Don&#39;t fly American Airlines? <br><br>Feedback is welcome!<br><br>Data: <a href="https://t.co/dZiveSoT3N">https://t.co/dZiveSoT3N</a> <br>Article: <a href="https://t.co/pnnbiYT7eO">https://t.co/pnnbiYT7eO</a> <a href="https://twitter.com/R4DScommunity?ref_src=twsrc%5Etfw">@R4DScommunity</a> <a href="https://twitter.com/hashtag/rstats?src=hash&amp;ref_src=twsrc%5Etfw">#rstats</a> <a href="https://twitter.com/hashtag/dataviz?src=hash&amp;ref_src=twsrc%5Etfw">#dataviz</a> <a href="https://twitter.com/hashtag/ggplot?src=hash&amp;ref_src=twsrc%5Etfw">#ggplot</a> <a href="https://twitter.com/hashtag/DataScience?src=hash&amp;ref_src=twsrc%5Etfw">#DataScience</a> <a href="https://t.co/5QTFjIETFZ">pic.twitter.com/5QTFjIETFZ</a></p>&mdash; Joe Stoica (@Joe_Stoica) <a href="https://twitter.com/Joe_Stoica/status/1027671114665865216?ref_src=twsrc%5Etfw">9. August 2018</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script> 
+
+#Summary
+
+- In this workshop you did a recap and extension of data wrangling with the tidyverse package. You know some functions of the dplyr package and how to apply them to your data and what results you can expect. 
+
+- You can now also describe the general idea and functionalty of the ggplot2 package and the different code pieces that produce a plot. You know about the different function of the pieces and how to join them together
+
+- If you want to practice more data vizualisation with ggplot, you now know where to find resources and community support.
+
+
+
+This workshop was created by Theresa Elise Wege for R-Ladies Loughborough in August 2018 and is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License.
+
+

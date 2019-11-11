@@ -1,0 +1,87 @@
+---
+   title: "Nuclear Explosions"
+   author: "Joel Soroos"
+   date: "September 1, 2019"
+   output: pdf_document
+---
+
+
+### 1. Source nuclear explosion data
+```{r source, warning = TRUE, results = FALSE, message = FALSE}
+
+   library (tidyverse)
+   library (janitor) 
+
+   explosions_raw <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-20/nuclear_explosions.csv") %>%
+      clean_names () %>%
+      drop_na (country)
+```
+   
+
+### 2.  Transform nuclear explosion data
+```{r transform, message = F, results = F}
+
+   explosions <- explosions_raw %>%
+      mutate (
+         country = ifelse(country == "PAKIST", "Pakistan", country),
+         country = ifelse(country %in% c("FRANCE", "INDIA", "CHINA"), str_to_title (country), country)
+         ) %>%
+      group_by (year) %>%
+         count (country) %>%
+         arrange (year, n) %>%
+         mutate(rank = row_number(-n) * 1) %>%
+         ungroup () 
+```
+
+
+### 3. Visualize nuclear explosion data
+```{r plot}
+
+   library (scales)
+   library (ggdark)
+   library (gganimate)
+   library (gifski)
+
+   g <-ggplot (explosions, aes (rank)) +
+      #bars
+         geom_tile (
+            aes(y = n/2, height = n, fill = country),
+            width = 0.5
+            ) +
+      #bar labels
+         geom_text(
+            aes(y = 0, label = paste (country, "  ")), 
+            hjust = 1, color = "white", size = 4.5, family = "sans"
+            ) +
+         geom_text(
+            aes(y = n, label = paste (" ",n)), 
+            hjust = "left", color = "white", size = 4, family = "sans"
+            ) +
+      #scales
+         coord_flip (clip = "off", expand = FALSE) +
+         scale_x_reverse() +
+         scale_y_continuous(trans = log10_trans()) +
+         ylim (-18, 105) +
+         scale_fill_brewer(type = "qual", palette = 2) +
+      #themes
+         dark_theme_classic () +
+         theme(
+            plot.title = element_text(hjust = 0.5, vjust = 0, size = 17, face = "bold", margin = margin (0,0,25,0)),
+            plot.caption = element_text (hjust = 0, size = 11, margin = margin (20,0,0,0)),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank(),
+            axis.line = element_blank(),
+            legend.position = "none"
+            ) +
+      labs(
+         title = "Nuclear Weapon Explosions\n{closest_state}",
+         caption = "Data: Stockholm International Peace Research Institute via R4DS Tidy Tuesday\nVisualization: Joel Soroos @soroosj"
+         ) +
+      #separate charts by year
+         transition_states(year, transition_length = 4, state_length = 1)
+
+      #animate charts
+         animate(g, nframes = 200, fps = 5, width = 420, height = 230, 
+           renderer = gifski_renderer("explosions.gif"))
+```

@@ -1,0 +1,38 @@
+---
+title: "Tidy Tuesday: Ramen"
+author: "Rebekah R. Jacob, MSW, MPH"
+date: "June 4, 2019"
+output: html_document
+---
+
+#Load Data and libraries
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(RColorBrewer)
+
+ramen <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-04/ramen_ratings.csv")
+
+ramen
+```
+
+#Look for brands with most reviews (most popular)
+```{r message=FALSE, warning=FALSE}
+ramen %>%
+  group_by(brand) %>%
+  summarise(n=length(brand)) %>%
+  arrange(desc(n))
+```
+
+#Create curated df for plotting
+```{r message=FALSE, warning=FALSE}
+brand.df<- ramen %>%
+  filter(brand==c("Nissin", "Nongshim", "Maruchan") & !is.na(stars))
+brand.df
+```
+
+#Create boxplot: Star ratings by brand and style
+```{r message=FALSE, warning=FALSE}
+p<- ggplot(brand.df, aes(x=factor(brand), y=stars, fill=factor(style))) + geom_boxplot()
+p + ggtitle("Ratings of the most popular ramen by style") + xlab("Brand") + ylab("Stars") + scale_fill_brewer(palette="Dark2") + scale_fill_discrete(name="Style")
+
+```

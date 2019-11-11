@@ -1,0 +1,108 @@
+---
+title: "Anime Analysis"
+author: "Vaibhav"
+date: "April 23, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(gganimate)
+theme_set(theme_minimal())
+```
+
+```{r}
+tidy_anime <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-04-23/tidy_anime.csv")
+
+head(tidy_anime)
+str(tidy_anime)
+
+tidy_anime <- tidy_anime %>%
+  mutate(
+    start_date = lubridate::ymd(start_date),
+    end_date = lubridate::ymd(end_date)
+  ) %>%
+  filter(rank != 0, popularity != 0)
+```
+
+Most Popular Anime
+```{r}
+top_16_genre <- tidy_anime %>% select(name, genre, popularity) %>% count(genre, sort = TRUE) %>% top_n(16) %>% pull(genre)
+
+tidy_anime %>%
+  select(name, genre, popularity) %>%
+  group_by(name, genre) %>%
+  summarise(pop = sum(popularity)) %>%
+  arrange(desc(pop)) %>%
+  ungroup() %>%
+  top_n(20) %>%
+  mutate(name = fct_reorder(name, pop)) %>%
+  ggplot(aes(reorder(name, pop), pop)) + geom_col() + coord_flip() +
+  labs(title = "Most Populat Anime", y = "", x = "")
+```
+
+Episodes per Genre (Top 10)
+
+```{r}
+tidy_anime %>%
+  select(genre, episodes) %>%
+  group_by(genre) %>%
+  summarise(episodes = mean(episodes, na.rm = TRUE), count = dplyr::n()) %>%
+  arrange(desc(count)) %>%
+  top_n(10) %>%
+  mutate(genre = fct_reorder(genre, episodes)) %>%
+  ggplot(aes(genre, episodes, fill = genre)) + geom_col(show.legend = FALSE) + coord_flip() +
+  labs(title = "Episodes in a season Per Genre (Top 10)", x = "", y = "")
+```
+
+Top 10 Ranked Anime (Already Aired Vs Currently Running )
+
+```{r}
+
+tidy_anime %>%
+  select(name, airing, rank) %>%
+  distinct(name, airing, rank) %>%
+  group_by(airing) %>%
+  top_n(n = 20, wt = -rank) %>%
+  ungroup() %>%
+  mutate(
+    name = fct_reorder(name, -rank),
+    airing = as.factor(airing),
+    airing = fct_recode(airing,
+      "ALREADY AIRED" = "FALSE",
+      "CURRENTLY AIRING" = "TRUE"
+    )
+  ) %>%
+  ggplot(aes(name, rank, fill = name)) + geom_col(show.legend = FALSE) + coord_flip() + labs(title = "Top Ranked Anime (Already Aired Vs Current Airing)", y = "", x = "") +
+  facet_wrap(~airing, scales = "free")
+```
+
+Which Genre was popular in which year
+
+```{r}
+
+p<- tidy_anime %>%
+  select(name, genre, airing, start_date, end_date, rank) %>%
+  filter(genre %in% top_16_genre) %>%
+  mutate(start_year = lubridate::year(start_date)) %>%
+  select(start_year, genre) %>%
+  add_count(start_year, genre) %>%
+  filter(start_year < 2019 ) %>%
+  arrange(start_year) %>%
+  unique() %>%
+  ggplot(aes( start_year,n, color = genre)) + geom_point(show.legend = FALSE)  +
+  geom_path(show.legend = FALSE)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  +
+  facet_wrap(~genre) + 
+  labs(title = "Analysing Genre Treng in Anime by Year",
+subtitle= "Year: {round(frame_along,0)}", y="",x="")+
+  transition_reveal(along=start_year) +
+  ease_aes('linear')
+  
+
+animate(p,102,3)
+
+```
+

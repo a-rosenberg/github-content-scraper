@@ -1,0 +1,53 @@
+---
+title: "RLA_10_22_19"
+author: "Stephanie Reinders"
+date: "10/22/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+d <- read.csv('horror_movies.csv')
+```
+
+```{r}
+summary(d)
+```
+
+```{r}
+d %>% filter(language == "Japanese") %>% 
+  ggplot(aes(review_rating)) +
+  geom_histogram(binwidth=1)
+```
+
+```{r}
+d2 <- separate(d,language, into = c("language1","language2"), extra = "merge")
+```
+
+```{r}
+rating <- d2 %>%
+  group_by(language1) %>%
+  summarize(n=n(),
+            mean_rating = mean(review_rating))
+rating
+``` 
+
+```{r}
+d2 %>% filter(language1=="English") %>%
+  select(review_rating)
+```
+
+
+
+```{r}  
+rating %>% 
+  ggplot(aes(language1,mean_rating,fill=mean_rating)) +
+  geom_bar(stat="identity",position="dodge") + 
+  coord_flip()
+```
+
+

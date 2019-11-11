@@ -1,0 +1,184 @@
+---
+title: "Nobel Prize winners"
+output: html_document
+author: Rika Gorn
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+For this Tidy Tuesday, let's look at Nobel Prize winners from 1901 to 2016 and see if we can find some fun trends. I'm going to go ahead and guess that a majority of winners are males from the U.S. or Europe. The first female winner was Marie Curie, I believe, but I could be wrong!
+
+First we setup our libraries:
+```{r setup2, warning = FALSE, message=FALSE}
+library(tidyverse)
+library(janitor)
+library(scales)
+library(readr)
+library(lubridate)
+library(ggbeeswarm)
+library(ggridges)
+library(maps)
+
+
+```
+Let's import the data for [Tidy Tuesday](https://github.com/rfordatascience/tidytuesday) which comes to us from [Kaggle](https://www.kaggle.com/nobelfoundation/nobel-laureates). 
+```{r import, warning = FALSE, message=FALSE}
+nobel <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-14/nobel_winners.csv")
+```
+Now lets take a quick look at our variables with `glimpse`. They are all primarily characters and integers which makes sense.
+```{r}
+glimpse(nobel)
+```
+First, let's look at how men and women compare in different categories. Medicine has received the most winners across all the categories, and women have the most winners in the Peace, Literature, and Medicine categories. 
+```{r barchart}
+nobel %>% 
+  mutate(age =  prize_year - year(birth_date)) %>% 
+  filter(!is.na(gender)) %>% 
+  ggplot(aes(x = category,
+             fill = gender)) +
+  geom_bar(width = 0.5)+ 
+  theme_minimal()+
+  scale_fill_manual(values=c("#BB1288", "#5867A6", "gray"))+
+  labs(title = "Noble Prize Winners By Gender",
+       colour = "Gender",
+       x = "Category",
+       y = "# of Winners")
+      
+```
+```{r}
+nobel %>% 
+  filter(gender == "Female") %>%
+  select(full_name, prize_year, category) %>% 
+  group_by(category) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+```{r}
+nobel %>% 
+  filter(gender == "Female") %>% 
+  select(full_name, prize_year, category) %>% head()
+```
+So in the last `r 2016 -1901` years we've had 50 female nobel price laureates. And I was right! The first winner was Marie Curie!
+
+There were a few NA's that I filtered out for gender in the above chart that I'd like to check out.
+
+```{r}
+nobel %>% filter(is.na(gender)) %>% select(full_name, category)
+```
+Fascinating, there were 26 organizations rather than individuals that won the Nobel Peace Prize. 
+
+A fellow TidyTuesdayer [Othomenantegazza](https://twitter.com/othomn/status/1128426237834276865) had a really awesome way of showing similar information with a beeswarm graph that I wanted to recreate here. They also changed the alpha in their chart which changes the translucency of the dots, but I left that alone here. I also wanted to try out the `ggridges` package so I made a similar graph looking at age and gender across categories.
+
+```{r beeswarm chart, warning = FALSE}
+nobel %>% 
+  mutate(age =  prize_year - year(birth_date)) %>% 
+  ggplot(aes(x = category,
+             y = age,
+             colour = gender)) +
+  ggbeeswarm::geom_beeswarm() +
+  coord_flip() +
+  scale_color_manual(values = c("#BB1288", "#5867A6")) +
+  theme_minimal() +
+  labs(title = "Noble Prize Winners By Gender and Age",
+       colour = "Gender",
+       x = "Category",
+       y = "Age")
+```
+
+```{r ggridges, message = FALSE, warning=FALSE}
+nobel %>% 
+  mutate(age =  prize_year - year(birth_date)) %>% 
+  ggplot(aes(x = age,
+             y = category,
+            fill = gender)) +
+  geom_density_ridges(scale = 0.9) + 
+  scale_x_continuous(limits = c(16, 100))+
+   scale_fill_manual(values = c("#BB1288", "#5867A6")) +
+  theme_minimal() +
+  labs(title = "Noble Prize Winners By Age",
+       colour = "Gender",
+       x = "Age",
+       y = "Category")
+```
+
+I want to make a heat map but for this will need to bring in longitude and latitude data and also clean up our countries since many of them no longer exist. In general, I want our birth_country variable to conform to the region available in the `maps` package. 
+
+
+```{r}
+map.world <- map_data('world') 
+map_countries <- distinct(map.world, region)
+```
+Now let's filter the original dataset to only include birth_countries that have more than 5 winners and is not missing. This cuts our dataset down from 969 to 792 winners and top 24 countries. Then we can take a look at some of our birth_country mismatches which we will need to recode. 
+
+```{r}
+nobel_countries <- nobel %>% group_by(birth_country) %>% count() %>% filter(n >5, !is.na(birth_country)) %>% arrange(desc(n))
+
+anti_join(nobel_countries, map.world, by = c('birth_country' = 'region')) %>% select(birth_country) %>% group_by(birth_country) %>% count(sort = T)
+```
+And let's fix those mismatches by recoding them to the names that are in our map.world dataset.
+```{r}
+nobel <- nobel %>% mutate(birth_country = recode(birth_country,
+                                                 "United States of America" = "USA",
+                                                 "United Kingdom" = "UK",
+                                                 "Scotland" = "UK",
+                                                 "Northern Ireland" = "Ireland",
+                                                 "Germany (Poland)" = "Poland",
+                                                 "Prussia (Germany)" = "Germany",
+                                                 "Prussia (Poland)" = "Poland"
+                                                  )
+                            )
+```
+
+
+
+```{r}
+
+
+country_list <- nobel_countries$birth_country
+
+nobel_small <- nobel %>% filter(birth_country %in% country_list)
+```
+Let's make sure Now let's make our map dataset by combining the nobel dataset and the map dataset.
+```{r}
+nobel_small <- left_join(nobel_small, nobel_countries, by ="birth_country") %>% rename("num_winners" = "n") #this add the count of winners
+
+nobel_map <- left_join( map.world, nobel_small, by = c("region"= "birth_country"))
+```
+
+```{r}
+ggplot(nobel_map, aes( x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = num_winners))+
+  scale_fill_gradientn(colours = c('#461863','#404E88','#2A8A8C','#7FD157','#F9E53F')
+                       ,values = scales::rescale(c(5, 50, 100, 200, 300))
+                       ,labels = comma
+                       ,breaks = c(5, 50, 100, 200, 300)
+  ) +
+  labs(fill = '# of Nobel Winners'
+              ,title = 'U.S. and Europe Win Most Nobel Prizes'
+       ,x = NULL
+       ,y = NULL) +
+  theme(text = element_text(family = 'Gill Sans', color = '#EEEEEE')
+        ,plot.title = element_text(size = 20)
+        ,plot.subtitle = element_text(size = 14)
+        ,axis.ticks = element_blank()
+        ,axis.text = element_blank()
+        ,panel.grid = element_blank()
+        ,panel.background = element_rect(fill = '#333333')
+        ,plot.background = element_rect(fill = '#333333')
+        ,legend.position = c(.18,.36)
+        ,legend.background = element_blank()
+        ,legend.key = element_blank()
+  ) +
+  annotate(geom = 'text'
+           ,label = 'Source: Kaggle | Plot by @RikaGorn '
+           ,x = 18, y = -55
+           ,size = 3
+           ,family = 'Gill Sans'
+           ,color = '#CCCCCC'
+           ,hjust = 'left'
+  )
+```
+
+

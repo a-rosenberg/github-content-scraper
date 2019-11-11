@@ -1,0 +1,188 @@
+---
+title: ''
+author: "Katie Saund"
+date: "12/3/2018"
+output:
+  pdf_document: default
+  html_document: default
+  latex_engine: xelatex 
+---
+
+# Tiday Tuesday Week 36  
+## Medium data science article metadata
+### Goal is to work with the tidytext package.  
+
+```{r, message = FALSE}
+# LIBRARIES -------------------------------------------------------------------#
+library(tidyverse)
+library(tidytext)
+library(lubridate)
+```
+
+```{r}
+# IMPORT DATA -----------------------------------------------------------------#
+raw_metadata <- read_csv(file ="medium_datasci.csv", quote='"')
+head(raw_metadata)
+```
+  
+I noticed some duplicate names, articles without names, subtitles as duplicates of titles, etc... Which means it is time to clean.  
+
+```{r}
+# CLEAN -----------------------------------------------------------------------#
+metadata <- raw_metadata %>% 
+  distinct(title, author, .keep_all = TRUE) %>%
+  drop_na(title) 
+head(metadata)
+
+dim(raw_metadata)
+dim(metadata)
+```
+  
+The data isn't perfect, but looking much better than before.  
+
+Let's combine the three date columns into one.   
+```{r}
+metadata <- metadata %>%
+  mutate(date = ymd(paste(year, month, day, sep= '-')), 
+         weekday = wday(as.Date(date,'%Y-%m-%d'), label = TRUE, abbr = FALSE))
+```
+  
+What is the trend in the number of data science articles published over the year? 
+```{r}
+# ANALYSIS --------------------------------------------------------------------#
+metadata %>%
+  ggplot(mapping = aes(x = date)) + 
+  geom_line(stat = "bin", bins = 25) + 
+  theme_bw() + 
+  ggtitle(label = "Medium's data science article publication output doubled in 1 year")
+```
+  
+Overall, the number of articles per day has doubled in a year.  
+  
+Is there a day of the week on which people tend to publish? 
+```{r}
+metadata %>%
+  add_count(as.factor(weekday)) %>% 
+  distinct(weekday, n) %>%
+  ggplot(mapping = aes(x = weekday, y = n, fill = as.factor(weekday))) + 
+  theme_bw() + 
+  geom_bar(stat = "identity") +
+  ggtitle(label = "Medium's data science articles snooze on weekends")
+```
+  
+Monday's take a slight lead, with the weekends showing a huge dip in publications. 
+
+  
+Let's get a feel for the distribution of claps per article.  
+```{r}
+no_clap_percentage <- round(100 * sum(metadata$claps == 0)/nrow(metadata), 0)
+
+metadata %>% 
+  filter(claps < 250) %>% 
+    ggplot(mapping = aes(x = claps)) + 
+    theme_bw() + 
+    geom_histogram(bins = 50) +
+    ggtitle(label = paste(no_clap_percentage, "% of data science articles go without applause", sep = ""))
+```
+  
+
+```{r}
+metadata %>%
+    ggplot(mapping = aes(x = reading_time, y = claps)) + 
+    geom_point(na.rm = TRUE) + 
+    geom_vline(xintercept = 7, 
+               linetype = "dashed", 
+               color = "red",
+               size = 1) + 
+    theme_bw() + 
+    geom_jitter() + 
+    ggtitle(label = "Sweet spot for claps is a 7 minute read")
+
+```
+  
+I'm eye balling the read time for the above plot.  
+
+
+I hypothesize that more prolific authors are (1) better writers and (2) write interesting content and therefore have more applause. Is this supported by the data?  
+```{r}
+metadata %>%
+  add_count(as.factor(author)) %>%
+    ggplot(mapping = aes(y = claps, x = n)) + 
+    geom_point() + 
+    theme_bw() +
+    scale_colour_gradient(low = "white", high = "red") + 
+    ggtitle(label = "Writing more articles on Medium does not necessarily increase engagement")
+```
+  
+Nope! You don't have to write a lot of articles in the field to have a viral article. Perhaps highly prolific authors may be diluting their impact or prioritizing quantity over quality. 
+
+Let's investigate what's different about the topics of the most popular and least popular articles. 
+```{r}
+metadata %>%
+  filter(claps > 10000) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 3) %>%
+  ggplot(mapping = aes(x = word, y = n/sum(n))) +
+  theme_bw() + 
+  geom_bar(stat = "identity") + 
+  ylab("Frequency") + 
+  ggtitle(label = "Most common words in popular articles")
+
+
+metadata %>%
+  filter(claps < 10) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 1500) %>%
+  ggplot(mapping = aes(x = word, y = n/sum(n))) +
+  theme_bw() + 
+  geom_bar(stat = "identity") + 
+  ylab("Frequency") + 
+  ggtitle(label = paste("Most common words in unpopular articles"))
+
+```
+  
+Wow, almost no difference. Maybe how-to articles ("guide") have broad audiences because they are for amateurs?  
+Perhaps some of the difference in popularity is not because unpopular articles exclude buzz words, but that they include words that drive away views.  
+
+
+Per suggestion on twitter using forcats package (part of tidyverse) to order the bars in decreasing order to improve interpretability of the plot. 
+```{r}
+metadata %>%
+  filter(claps > 10000) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 3) %>%
+  ggplot(mapping = aes(x = fct_reorder(word, n, .desc = TRUE), y = n/sum(n))) +
+  theme_bw() + 
+  geom_bar(stat = "identity") + 
+  ylab("Frequency") + 
+  xlab("word") + 
+  ggtitle(label = "Most common words in popular articles")
+
+
+metadata %>%
+  filter(claps < 10) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 1500) %>%
+  ggplot(mapping = aes(x = fct_reorder(word, n, .desc = TRUE), y = n/sum(n))) +
+  theme_bw() + 
+  geom_bar(stat = "identity") + 
+  ylab("Frequency") + 
+  xlab("word") + 
+  ggtitle(label = "Most common words in unpopular articles")
+```
+
+
+
+# Learning moments
+* TidyTuesday is great fun! I want to continue using this challenge to improve my speed & confidence using the tidyverse grammar and tools. 
+* I used lubridate, distinct(), and add_cout() for the first time today. 
+
+

@@ -1,0 +1,105 @@
+---
+title: "Tidy Tuesdat - Baltimore Bridges"
+author: "Pedro William"
+date: "27 de novembro de 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggthemes)
+library(plotly)
+
+bridges <- read_csv("Baltimore Bridges.txt") #Colocar URL
+
+
+
+```
+
+
+
+###Conditions of bridges across Maryland
+
+```{r}
+
+bridges$county <- str_replace(bridges$county, "Baltimore city", "Baltimore City")
+
+condition_n <- bridges %>%
+  mutate(bridge_condition = factor(bridge_condition, levels = c("Good", "Fair", "Poor")),
+         county = factor(county)) %>% 
+  group_by(county, bridge_condition) %>% 
+  summarise(n = n())
+
+condition_n$county <- fct_reorder(condition_n$county, condition_n$n)
+
+
+
+ 
+  ggplot(condition_n, aes(x = county, y = n, fill = bridge_condition)) +
+    geom_col() +
+    coord_flip() +
+    geom_label(aes(label = n), show.legend = FALSE, position = position_stack(0.9)) +
+    scale_fill_manual(name = "Bridge condition", values = c("#71BBD0", "#ABD5E1", "#CCCCCC")) +
+    labs(x = "",
+         y = "",
+         title = "Condition of the bridges by county") +
+    theme_economist() +
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.line.x = element_blank(),
+          legend.position = "bottom")
+```
+
+
+
+###Owners 
+```{r}
+
+bridges$owner <- as.factor(bridges$owner)
+
+
+bridges_lump <- bridges %>% mutate(owner = fct_lump(bridges$owner, 4)) %>% 
+                            filter(!is.na(owner))
+  
+
+```
+
+```{r}
+
+bridges_lump %>% group_by(owner, bridge_condition) %>%
+  summarise(n_bridges = n()) %>% 
+  ggplot(aes(x = owner, y = n_bridges, fill = bridge_condition)) +
+    geom_col() +
+    coord_flip() +
+    theme_bw()
+
+
+```
+
+
+
+```{r}
+ggplot() +
+  geom_polygon(data = maryland, aes(x = long, y = lat, group = group), fill = "white", col = "black") +
+  geom_point(data = bridges_lump, (aes(x = long, y = lat, col = owner)), alpha = 0.2) +
+  coord_map() +
+  labs(title = "Distribution of bridges-owners across Maryland") +
+  scale_color_discrete(name = "Owners") +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  theme_void()
+
+```
+
+### Mean traffic evolution
+
+```{r}
+bridges %>% group_by(yr_built) %>% 
+  summarise(avg_traffic = mean(avg_daily_traffic)) %>% 
+  ggplot(aes(x = yr_built, y = avg_traffic)) +
+    geom_line()
+```
+

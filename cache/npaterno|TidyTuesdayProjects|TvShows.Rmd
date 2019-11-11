@@ -1,0 +1,85 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#load Tidyverse library and download data from Github TidyTuesday repository
+```{r}
+library(tidyverse)
+tv_shows<-readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-08/IMDb_Economist_tv_ratings.csv")
+```
+#rename the "title" variable to "Program"
+```{r}
+colnames(tv_shows)[colnames(tv_shows)=="title"] <- "Program"
+```
+#sort data by season number in descending order
+```{r}
+tv_seasons<-tv_shows%>%
+     arrange(desc(seasonNumber))
+```
+#filter tv shows with more than 10 seasons and group by Program
+```{r}
+tv_longrun<-tv_seasons%>%
+     filter(seasonNumber>=10)%>%
+    group_by(Program)
+```
+#identify unique Programs by titleID
+```{r}
+tv_longrun_unique<-distinct(tv_longrun,titleId)
+```
+#filter all seasons of Programs that lasted at least 10 seasons
+```{r}
+tv_lr<-tv_shows%>%
+     filter(Program %in% tv_longrun_unique$Program)
+```
+#plot to compare rating by season for Programs that lasted at least 10 seasons
+```{r}
+ggplot()+
+     geom_line(data=tv_lr,mapping=aes(x=seasonNumber,y=av_rating,color=Program))+
+      theme_bw()+
+      xlab("Season")+
+      ylab("Average Rating")
+```
+#filter out long running comedy series
+```{r}
+comedy<-tv_lr%>%
+     filter(str_detect(tv_lr$genres,"Comedy"))
+```
+#plot to compare rating by season among comedy Programs
+```{r}
+ggplot()+
+     geom_line(data=comedy,mapping=aes(x=seasonNumber,y=av_rating,color=Program),na.rm=TRUE)+
+      theme_bw()+
+      xlim(0,15)+
+      ylim(5,9)+
+      xlab("Season")+
+      ylab("Average Rating")
+```
+#split genres variable so Programs with more than one genre appear once for each genre
+```{r}
+genre<-separate_rows(tv_shows,genres,sep=",")%>%
+  arrange(genres)%>%
+  group_by(genres, seasonNumber)%>%
+  summarize(mean=mean(av_rating))
+```
+#plot to compare rating per season among all genres
+```{r}
+ggplot()+
+  geom_line(data=genre,mapping=aes(x=seasonNumber,y=mean,color=genres))+
+  theme_bw()+
+  labs(title="Average Rating per Season by Genre",x="Season",y="Average Rating")
+```
+#filter Programs that lasted less than 10 seasons and are not Reality TV Programs
+```{r}
+genre_short<-genre%>%
+  filter(seasonNumber<=10)%>%
+  filter(!str_detect(genres,"Reality"))
+```
+#plot to compare rating per season among short lived, non Reality TV Programs
+```{r}
+ggplot()+
+  geom_line(data=genre_short,mapping=aes(x=seasonNumber,y=mean,color=genres))+
+  theme_bw()+
+  labs(title="Average Rating per Season (<10) by Genre",x="Season",y="Average Rating")
+```
+

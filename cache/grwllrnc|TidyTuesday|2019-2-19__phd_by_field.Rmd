@@ -1,0 +1,75 @@
+---
+title: "#TidyTuesday: PhDs Awarded by Field"
+author: "grwllrnc"
+date: "19 Februar 2019"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+
+# set ggplot2 theme
+theme_set(theme_light())
+```
+
+```{r}
+# read data
+data <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-02-19/phd_by_field.csv")
+
+# clean that mess
+data <- data %>%
+  mutate(broad_field = str_to_title(broad_field),
+         field = str_replace(field, "Anthropology, generalj", "Anthropology, general"),
+         field = str_to_title(field))
+```
+
+### Which fields of study have the highest change in number of graduates over time (greatest variance)?
+
+```{r}
+# Standard Deviation of Fields of Study
+sd_top5 <- data %>%
+  group_by(field) %>%
+  mutate(sd_field = sd(n_phds, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(sd_field > quantile(sd_field, 0.95, na.rm = TRUE)) %>%
+  mutate(field = fct_reorder(field, sd_field))
+
+sd_top5 %>%
+  ggplot(aes(field, sd_field, color = broad_field, size = n_phds)) +
+  geom_point() +
+  coord_flip() +
+  scale_color_discrete(name = "Broad Field") +
+  scale_size_continuous(name = "# of Graduates") +
+  labs(title = "Fields of Study with Highest Change in Number of Graduates over Time",
+       subtitle = "Sorted by Standard Deviation, Top 5%",
+       caption = "#tidytuesday, 2019-02-19 | @grwllrnc\nData source: National Science Foundation, nsf.gov",
+       x = "Field of Study",
+       y = "Standard Deviation of # of Awarded PhDs")
+
+ggsave("../Tidy Tuesday/Variance 1.png", units = "cm", width = 29.7, height = 21)
+```
+
+
+```{r}
+# Fields of Study with Highest Change in Number of Graduates over Time (top 5%)
+selected_fields <- as.character(unique(sd_top5$field))
+  
+# Change over time of each field (top 5%)
+# Facet plot
+data %>%
+  filter(field %in% selected_fields) %>%
+  group_by(field) %>%
+  mutate(sd_field = sd(n_phds, na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(year, n_phds)) +
+  geom_line() +
+  scale_x_continuous(breaks = c(2009, 2011, 2013, 2015, 2017)) +
+  facet_wrap(~ fct_reorder(field, desc(sd_field)), scale = "free_y") +
+  labs(title = "Fields of Study with Highest Change in Number of Graduates over Time",
+       subtitle = "Sorted by Standard Deviation, Top 5%",
+       caption = "#tidytuesday, 2019-02-19 | @grwllrnc\nData source: National Science Foundation, nsf.gov",
+       x = "Year",
+       y = "# of Awarded PhDs")
+
+ggsave("../Tidy Tuesday/Variance 2.png", units = "cm", width = 21, height = 21)
+```

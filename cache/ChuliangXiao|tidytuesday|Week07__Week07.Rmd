@@ -1,0 +1,167 @@
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load library  
+```{r message = F, warning = F}
+library(tidyverse)
+library(Hmisc)
+```
+
+### Read in data  
+```{r message = F, warning = F}
+fname <- "../data/week7_starwars.csv"
+dfSW_raw  <- read_csv(fname, col_names = F)
+h2        <- dfSW_raw[2,]
+dfSW      <- slice(dfSW_raw, 3:n())
+names(dfSW) <- c("id", "seen_any", "fan", 
+                 "SW1", "SW2", "SW3", "SW4", "SW5", "SW6",
+                 "RSW1", "RSW2", "RSW3", "RSW4", "RSW5", "RSW6",
+                 h2[16:29],
+                 "shot", "ext", "fan_ext", "Star_Trek",
+                 "gender", "age", "income", "edu", "location")
+```
+
+### Clean data
+```{r}
+nameSW <- c("Star Wars: Episode I  \nThe Phantom Menace", 
+            "Star Wars: Episode II  \nAttack of the Clones",
+            "Star Wars: Episode III  \nRevenge of the Sith",
+            "Star Wars: Episode IV  \nA New Hope",
+            "Star Wars: Episode V \nThe Empire Strikes Back", 
+            "Star Wars: Episode VI \nReturn of the Jedi")
+funfactor <- function(x){
+  factor(x, levels = c("Very favorably",
+                       "Somewhat favorably",
+                       "Neither favorably nor unfavorably (neutral)",
+                       "Somewhat unfavorably",
+                       "Very unfavorably",
+                       "Unfamiliar (N/A)"),
+         labels = c("Very Favorable",
+                    "Some Favorable",
+                    "Neutral",
+                    "Some Unfavorable",
+                    "Very Unfavorable",
+                    "Unfamiliar"))
+}
+clSW  <- dfSW %>% 
+  mutate(seen_any = factor(seen_any, levels = c("Yes", "No"), labels = c("T", "F")),
+         fan = factor(fan, levels = c("Yes", "No"), labels = c("T", "F")),
+         ext = factor(ext, levels = c("Yes", "No"), labels = c("T", "F")),
+         fan_ext = factor(fan_ext, levels = c("Yes", "No"), labels = c("T", "F")),
+         SW1 = str_replace(SW1, "Star Wars: Episode I  The Phantom Menace", "T"),
+         SW2 = str_replace(SW2, "Star Wars: Episode II  Attack of the Clones", "T"),
+         SW3 = str_replace(SW3, "Star Wars: Episode III  Revenge of the Sith", "T"),
+         SW4 = str_replace(SW4, "Star Wars: Episode IV  A New Hope", "T"),
+         SW5 = str_replace(SW5, "Star Wars: Episode V The Empire Strikes Back", "T"),
+         SW6 = str_replace(SW6, "Star Wars: Episode VI Return of the Jedi", "T")
+         ) %>% 
+  mutate_at(vars(SW1:RSW6, shot:Star_Trek, location), factor) %>% 
+  mutate_at(vars(`Han Solo`:`Yoda`), funfactor) %>% 
+  mutate(income = factor(income, levels = c("$0 - $24,999",
+                                            "$25,000 - $49,999",
+                                            "$50,000 - $99,999",
+                                            "$100,000 - $149,999",
+                                            "$150,000+")),
+         edu = factor(edu, levels = c("Less than high school degree",
+                                      "High school degree",
+                                      "Some college or Associate degree",
+                                      "Bachelor degree",
+                                      "Graduate degree")))
+```
+
+### Plot "'Star War' "
+```{r Per of SW seen}
+clSW %>% 
+  select(gender, seen_any) %>% 
+  group_by(gender) %>% 
+  summarise(count = sum(seen_any == "T", na.rm = T),
+            perc = round(count/n() * 100, 2)) %>%
+  ggplot(aes(x = gender, y = perc)) + 
+  geom_bar(stat = "identity", fill = "light blue") +
+#  scale_x_discrete(labels = nameSW) +
+  labs(y = "percentage") +
+  geom_text(aes(label = count), size = 3, vjust = 0.5) +
+  ggtitle("People who have you seen any 'Star Wars'")
+  
+```
+
+### Plot "Which 'Star War' Movie have you seen"
+```{r perc of each SW seen, fig.width = 10}
+ms <- clSW %>% 
+  select(id:SW6, gender) %>% 
+  gather(SW1:SW6, key = "Episode", value = "seen") %>% 
+  group_by(Episode, gender) %>% 
+  summarise(count = sum(seen == "T", na.rm = T),
+            perc = round(count/n() * 100, 2)) %>%
+  drop_na() %>% 
+  ggplot(aes(x = Episode, y = perc, fill = gender)) + 
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5)) +
+  scale_x_discrete(labels = nameSW) +
+  scale_fill_discrete(name = NULL) +
+  labs(y = "percentage") +
+  geom_text(aes(label = count), size = 3,
+            position = position_dodge(width = 1),
+            inherit.aes = T) +
+  coord_flip() +
+  ggtitle("Which 'Star Wars' Movie have you seen")
+ms  
+```
+
+### Plot "the best movie"  
+```{r best movie, fig.width = 10}
+bm <- clSW %>% 
+  select(RSW1:RSW6, gender) %>% 
+  gather(RSW1:RSW6, key = "Episode", value = "seen") %>% 
+  group_by(Episode, gender) %>% 
+  summarise(count = sum(seen == 1, na.rm = T),
+            perc = round(count/n() * 100, 2)) %>%
+  drop_na() %>% 
+  ggplot(aes(x = Episode, y = perc, fill = gender)) + 
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5)) +
+  scale_x_discrete(labels = nameSW) +
+  scale_fill_discrete(name = NULL) +
+  labs(y = "percentage") +
+  geom_text(aes(label = count), size = 3,
+            position = position_dodge(width = 1),
+            inherit.aes = T) +
+  coord_flip() +
+  ggtitle("Which 'Star Wars' episode is most favorite")
+bm  
+```
+
+### Plot "favorite charactor"  
+```{r favorite charactor, fig.width = 10}
+ch <- clSW %>% 
+  select(`Han Solo`:`Yoda`, gender) %>% 
+  drop_na() %>% 
+  gather(`Han Solo`:`Yoda`, key = "charactor", value = "rank") %>% 
+  group_by(charactor, gender, rank) %>% 
+  summarise(count = n()) %>% 
+  group_by(charactor, gender) %>% 
+  mutate(perc = round(count/sum(count) * 100, 2)) %>%
+  mutate(rank = factor(rank, levels = c("Very Favorable",
+                                        "Some Favorable",
+                                        "Neutral",
+                                        "Some Unfavorable",
+                                        "Very Unfavorable",
+                                        "Unfamiliar"))) %>%
+  ggplot(aes(x = charactor, y = perc, fill = gender)) + 
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5)) +
+  theme_minimal()+
+  scale_fill_discrete(name = NULL) +
+  labs(y = "percentage") +
+  coord_flip() +
+  ggtitle("Which 'Star Wars' charactor is most favorite")+
+  facet_grid(~rank)+
+  theme(legend.position = "top") 
+ch  
+```
+
+## grid
+```{r message = F, warning = F, fig.height = 10, fig.width = 10}
+library(grid)
+library(gridExtra)
+grid.arrange(bm, ch, ncol = 1)
+```

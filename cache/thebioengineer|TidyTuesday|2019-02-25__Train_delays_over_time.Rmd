@@ -1,0 +1,67 @@
+---
+title: "Time to Grand Salami - TidyTuesday 04-10-2019"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r load_libraries}
+# devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR)
+library(tidyverse)
+library(lubridate)
+
+tt_data<-tt_load("2019-04-09")
+tt_data
+```
+
+```{r transform}
+
+
+time_since_win<-function(dat){
+  
+  dat<-dat %>% arrange(rolling_win_count)
+  
+  df<-data.frame(dat[1,]) %>% 
+    mutate(age=abs(floor(as.numeric(difftime(date_of_birth,tournament_date,units = "days"))/365)),
+           delta_days=0)
+  
+  if(nrow(dat)>1){
+    win <-seq(2,nrow(dat))
+    df_wins<-data.frame(dat[win,]) %>% 
+        mutate(age=abs(floor(as.numeric(difftime(tournament_date,date_of_birth,units = "days"))/365)),
+               delta_days=floor(as.numeric(difftime(tournament_date,dat[win-1,"tournament_date"][[1]],units = "days"))))
+    df<-bind_rows(df,df_wins)
+  }
+  return(df)
+}
+
+# is there a relationship between  age and the time between next grand slam?
+
+t_wins<-tt_data$grand_slams%>%
+  left_join(tt_data$player_dob%>%select(name,date_of_birth))%>%
+  group_by(name)%>%
+  do({time_since_win(.)})
+
+
+t_wins%>%
+  filter(rolling_win_count>1) %>% 
+  mutate(age_decile=cut(age,
+                        breaks=c(0,20,30,40,50,Inf))) %>%
+  group_by(name,age_decile)%>%
+  summarize(rolling_win_count = max(rolling_win_count),
+            mean_delta_days = mean(delta_days),
+            gender = unique(gender),
+            nwins_decile=n()) %>% 
+  ggplot()+
+  geom_jitter(aes(x=mean_delta_days,
+                   y= nwins_decile,
+                  color=rolling_win_count))+
+  facet_grid(age_decile~gender)
+
+```
+
+
+
+
+

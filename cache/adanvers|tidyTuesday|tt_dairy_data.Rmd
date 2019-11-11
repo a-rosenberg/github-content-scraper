@@ -1,0 +1,83 @@
+---
+title: 'Tidy Tuesday: Dairy Data'
+output: html_document
+---
+
+Prepared by Alex Danvers
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(zoo)
+
+fluidM.dat <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-29/fluid_milk_sales.csv")
+
+lactose.goog <- read.csv("~/Dropbox/tidyTuesday/Jan29_19/lactose_google_trend.csv")
+```
+
+# Comparing Milk Sales w Google Trend for 'Lactose'
+
+## Combining Google Trends Data w Milk Sales Data
+
+```{r combine data}
+lac.yr <- lactose.goog %>%
+  mutate(date = as.yearmon(as.character(lactose.goog$Month), format = "%Y-%m") ) %>%
+  mutate(year = year(date)) %>%
+  group_by(year) %>%
+  summarise(gTrend = mean(lactose...United.States.))
+
+lac.yr <- as.data.frame(lac.yr)
+
+lac.yr$milk_type <- "googleTrend"
+lac.yr <- lac.yr[,c(1,3,2)]
+
+names(lac.yr)[3] <- "value"
+names(fluidM.dat)[3] <- "value"
+lac.yr$value.z <- scale(lac.yr$value)
+
+fluid.Z <- fluidM.dat %>%
+  group_by(milk_type) %>%
+  mutate(value.z = scale(value)) %>%
+  as.data.frame()
+
+fluid.wG <- as.data.frame(rbind(fluid.Z, lac.yr))
+```
+
+## Create Plot
+
+```{r plot}
+fluid.wG2 <- fluid.wG %>%
+  filter(year > 2003) %>%
+  filter( milk_type %in% c("Total Production","googleTrend") )
+
+ggplot(fluid.wG2, aes(y=value.z, x=year, color=milk_type))+
+  geom_point()+
+  geom_line()+
+  geom_hline(yintercept=0, color="red", lty=2)+
+  theme_bw()+
+  labs(y="Year", x="Scaled Score",
+       title="Association of Milk Sales and Google Trend for Lactose")
+```
+
+## Running Statistical Test
+
+```{r cortest}
+# detrended data
+fluid.det <- fluid.wG2 %>%
+  group_by(milk_type) %>%
+  mutate(value.det = value.z - lag(value.z))
+
+# data prepped for correlation
+cor.dat <- fluid.det[,c("year","milk_type","value.det")] %>%
+  filter(milk_type %in% c("googleTrend", "Total Production")) %>%
+  spread(milk_type, value.det)
+
+# correlation test
+cor.test(as.numeric(cor.dat[[2]]),as.numeric(cor.dat[[3]]), 
+         use="pairwise.complete.obs",
+         method="pearson",
+         alternative="two.sided")
+```

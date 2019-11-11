@@ -1,0 +1,11 @@
+## Lessons from Tidy Tuesday 
+
+******
+
+Tidy Tuesday is a terrific opportunity to practice wrangling data and chart visualizations in R. Interesting data sets are available each week. Other R enthusiasts provide feedback and seeing their charts generates ideas.
+
+Below are lessons that I have learned from my submissions.
+
+| Week        | Data Set | Lesson                    | Function       | Package |
+| :--:        |:--:      |:--:                       |:--:            |:--:     |
+|`2019-06-24` | UFOs     | Customize legend position |legend.position |ggplot2  |

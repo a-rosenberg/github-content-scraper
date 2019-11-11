@@ -1,0 +1,149 @@
+---
+title: "Gumball Themes"
+author: "Alex Hallam"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This package had three goals/motivations.
+
+1. Quantile frames - for quick insights
+2. Color blind friendly colors - be a decent human being, make plots everyone can interpret
+3. Readable Fonts - easy reading as asthetics
+
+This vignette will show the following uses of quantile frames.
+
+1. Scatter plots
+2. Time series plots
+3. Boxplots
+
+Though there may be other uses of quantile framed plots. These are the ones that
+I have historically used.
+
+## Scatter Plots
+
+The `html_vignette` template includes a basic CSS theme. To override this theme you can specify your own CSS in the document metadata as follows:
+
+    output: 
+      rmarkdown::html_vignette:
+        css: mystyles.css
+
+## Figures
+
+The figure sizes have been customised so that you can easily put two images side-by-side. 
+
+```{r include=F}
+library(grid) # still working on putting this in NAMESPACE
+library(gumballthemes)
+library(tidyverse)
+```
+
+```{r, fig.align="center"}
+#library(grid) # still working on putting this in NAMESPACE
+#library(gumballthemes)
+#library(tidyverse)
+mtcars %>%
+  as_tibble() %>%
+  ggplot(aes(y = mpg, x = hp, color = factor(carb))) +
+  geom_point() +
+  geom_quantileframe() +
+  scale_y_quantile(mtcars$mpg) +
+  scale_x_quantile(mtcars$hp, digits = 0) +
+  ylab("Miles Per Gallon") +
+  xlab("Horse Power") +
+  guides(col = guide_legend(ncol= 6)) +
+  scale_color_gumball() +
+  theme_gumball()
+```
+
+The above plot uses all of the functions currently provided by `gumballthemes`:
+
+`scale_y_quantile` 
+
+`scale_x_quantile`
+
+`theme_gumball`
+
+The data-pixel ratio is high in the above plot. The range of each of the axes 
+are the min and max values. The thick bar represents the 25th, 50th (aka median), 
+and 75th percentiles. The axes are essentially simple boxplots.
+
+## Time Series Plots
+
+In this example the [`fredr`](http://sboysel.github.io/fredr/articles/fredr.html) 
+packages is required along with an API key from [FRED](https://research.stlouisfed.org/).
+```{r, echo=F, include=FALSE}
+library(fredr)
+fredr_set_key("c1856e7bf91eaca807aa6584e2614397")
+```
+
+```{r}
+#library(fredr)
+#fredr_set_key("abcdefghijklmnopqrstuvwxyz123456")
+unrate <- fredr_series_observations(
+  series_id = "UNRATE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = as.Date("2018-04-01"),
+  frequency = "q",
+  units = "chg"
+)
+
+unrate %>% glimpse()
+```
+
+After pulling data a time series plots is created. Note that `sides = "l"`. 
+This is because a quantile on the time axis does not make sense in this 
+example. 
+
+```{r, fig.align="center", fig.width=5.4, fig.height=3}
+unrate %>% 
+  ggplot(aes(y = value, x = date)) +
+  geom_line() +
+  geom_quantileframe(sides = "l") +
+  scale_y_quantile(unrate$value) + 
+  scale_x_date(date_breaks = "5 year", date_labels = "%Y") +
+  ylab("Change In UNRATE") +
+  xlab("") +
+  annotate("text", y = 1.0, x = as.Date("1997-01-01"),
+           label = "Change in UNRATE\nis normally between\n0.07% and -.20% with a\nmedian of -0.07") +
+  guides(col = guide_legend(ncol= 6)) +
+  scale_color_gumball() +
+  theme_gumball()
+```
+
+## Boxplots
+
+This section needs more work -- better examples.
+
+```{r, fig.align="center", fig.width=5.4, fig.height=3}
+unrate_monthly <- fredr_series_observations(
+  series_id = "UNRATE",
+  observation_start = as.Date("1990-01-01"),
+  observation_end = as.Date("2018-04-01"),
+  frequency = "m"
+)
+
+unrate_monthly %>% 
+  mutate(year = factor(lubridate::year(date))) %>% 
+  ggplot(aes(y = value, x = year)) +
+  ggthemes::geom_tufteboxplot() +
+  geom_quantileframe(sides = "l") + 
+  scale_y_quantile(unrate_monthly$value, digits = 2) + 
+  theme_gumball() +
+  theme(axis.text.x = element_text(hjust = 1,angle = 45))
+
+```
+
+
+

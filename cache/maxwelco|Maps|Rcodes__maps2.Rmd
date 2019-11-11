@@ -1,0 +1,178 @@
+---
+title: "Maps"
+author: "Maxwel Coura Oliveira"
+date: "12/11/2018"
+output: pdf_document
+---
+
+# Packages
+
+```{r include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(scales)
+library(ggthemes)
+library(usmap)
+library(ggmap)
+library(ggrepel)
+library(maps)
+library(grid)
+library(mapdata)
+library(maptools)
+library(stringr)
+library(dplyr)
+library(ggsn)
+library(choroplethr)
+```
+
+#Wisconsin map
+
+
+```{r}
+states = map_data("state")
+df <- subset(states, region =="wisconsin")
+```
+
+```{r}
+counties <- map_data("county")
+county <- subset(counties, region =="wisconsin")
+county 
+```
+
+```{r}
+base <- ggplot(data = df, mapping = aes(x = long, y = lat, group = group)) + 
+  coord_fixed(1.3) + 
+  geom_polygon(color = "black", fill = "white")
+base + theme_nothing()
+```
+
+
+```{r}
+Data1=read_csv("map2.csv")
+
+Map <- dplyr::full_join(Data1, county , by = "subregion")
+```
+
+
+```{r}
+ggplot(data = Map, mapping = aes(x = long, y = lat, group = group, fill = Restriction)) + 
+  geom_polygon(data = Map, aes(group=subregion, fill = Restriction, label = subregion), color="black") + scale_fill_manual(values=c("blue", "white")) +
+  geom_polygon(color = "black", fill = "NA")  + xlim(-93, -86.8) +
+  annotate("text", x = -92.375, y = 42.6, label = "Source: EPA; Regulations.gov", size=3) +
+  annotate("text", x = -91.8, y = 42.4, label = "Figure: University of Wisconsin-Madison WiscWeeds", size=3) +
+  labs(title="Dicamba Pesticide Use Limitation Areas - County list in Wisconsin", subtitle = "Wisconsin counties in which an omnidirectional 57-foot buffer must be included in addition to the 110-foot downwind buffer for dicamba applications in dicamba-tolerant soybeans to protect endangered species",  fill="", y="Latitude", x="Longitude") +
+  north(df, location = 'topright', symbol = 1, anchor = c(x = -92.5, y = 47.2)) +
+  scalebar(data=df, dist = 100, dd2km = T, model = 'International', location = "topright") + 
+      theme_economist_white() +
+      #geom_text(data=Map, mapping=aes(long, lat, label = subregion), size=1) +
+        theme(axis.text=element_text(size=17, color="black"), 
+        axis.title=element_text(size=20,face="bold"), 
+        panel.background = element_rect(fill="white", color = "black"), 
+        panel.grid.major = element_line(color = "white"), 
+  panel.grid.minor = element_blank(), plot.subtitle = element_text(face="bold", size=5.5, color="black", hjust=1.0),
+  legend.position="none", legend.text = element_text(size = 16, colour = "black"), legend.key = element_rect(fill=NA), panel.border = element_rect(fill=NA,color="black", size=0.5, linetype="solid"), plot.title = element_text(face="bold", size=17, color="red", hjust=1.7) ,
+legend.background = element_rect(fill =NA), legend.key.width = unit(2.2, "line"), legend.title=element_blank()) + 
+    ggsave("map3.png",  units="in", width=8, height=8, dpi=600)
+```
+
+
+
+
+#US map
+
+
+
+```{r}
+Data3=read_csv("map3.csv")
+```
+
+
+```{r}
+states = map_data("state")
+df_all <- subset(states)
+```
+
+```{r}
+counties <- map_data("county")
+county_all <- subset(counties)
+county_all
+```
+
+```{r}
+base_all <- ggplot(data = df_all, mapping = aes(x = long, y = lat, group = group)) + 
+  coord_fixed(1.3) + 
+  geom_polygon(color = "black", fill = "white")
+base_all + theme_nothing()
+
+```
+
+
+```{r}
+Data3<-Data3 %>% 
+  mutate(subregion = tolower(subregion))
+
+
+
+Map1 <- dplyr::full_join(Data3, county_all)
+```
+
+
+```{r}
+ggplot(data = Map1, mapping = aes(x = long, y = lat, group = group, fill = Restriction)) + 
+  geom_polygon(data =Map1, aes(group=group, fill = Restriction), color="black") +
+    annotate("text", x = -72, y = 25.5, label = "Source: EPA; Regulations.gov") +
+  annotate("text", x = -76, y = 24, label = "Figure: University of Wisconsin-Madison WiscWeeds") +
+  scale_fill_manual(values=c("blue", "white")) + 
+  labs(title="Dicamba Pesticide Use Limitation Areas - County list", 
+       subtitle = "US counties in which an omnidirectional 57-foot buffer must be included in addition to the 110-foot downwind buffer for dicamba applications in  dicamba-tolerant soybeans to protect endangered species", 
+       fill="", y="Latitude", x="Longitude", caption="") +
+  theme_economist_white() +
+  north(df_all, location = 'topright', symbol = 1, anchor = c(x = -63, y = 50)) +
+  scalebar(data=df_all, dist = 800, dd2km = T, model = 'International', location = "bottomleft") + 
+      theme(axis.text=element_text(size=20, color="black"), 
+        axis.title=element_text(size=25,face="bold"), legend.box = "horizontal",
+        panel.background = element_rect(fill="white", color = "black"), 
+        panel.grid.major = element_line(color = "white"), 
+  panel.grid.minor = element_blank(), plot.subtitle = element_text(face="bold", size=8, color="black", hjust=1.0),
+  legend.position="none", legend.text = element_text(size = 20, colour = "black"), legend.key = element_rect(fill=NA), panel.border = element_rect(fill=NA,color="black", size=0.5, linetype="solid"), plot.title = element_text(face="bold", size=20, color="red", hjust=-0.25) ,
+legend.background = element_rect(fill =NA), legend.key.width = unit(2.2, "line"), legend.title=element_text(size=20, face="bold")) + 
+    ggsave("map4.png", units="in", width=11, height=7, dpi=600)
+```
+
+
+
+```{r}
+Data4<-Data3 %>% 
+  select(subregion, region, Restriction) %>% 
+  count(region, na.rm = TRUE) %>% 
+  add_tally() %>% 
+  mutate(Perc=(n/nn)*100) 
+
+
+Map2 <- dplyr::full_join(Data4, county_all)
+```
+
+```{r}
+ggplot(data = Map2, mapping = aes(x = long, y = lat, group = group, fill =n)) + 
+  geom_polygon(data =Map2, aes(group=group, fill = n), color=NA) +
+  annotate("text", x = -72, y = 25.5, label = "Source: EPA; Regulations.gov") +
+  annotate("text", x = -76, y = 24, label = "Figure: University of Wisconsin-Madison WiscWeeds") +
+  labs(title="Dicamba Pesticide Use Limitation Areas - State list", 
+  subtitle = "US states in which an omnidirectional 57-foot buffer must be included in addition to the 110-foot downwind buffer for dicamba applications in dicamba-tolerant soybeans to protect endangered species", 
+       fill="", y="Latitude", x="Longitude", caption="") +
+  scale_fill_gradient("Number of counties",  low = "#132B43", high = "#56B1F7") +
+  #geom_label(aes(label=region)) +
+  theme_economist_white() +
+  north(df_all, location = 'topright', symbol = 1, anchor = c(x = -63, y = 50)) +
+  scalebar(data=df_all, dist = 800, dd2km = T, model = 'International', location = "bottomleft") + 
+      theme(axis.text=element_text(size=20, color="black"), 
+        axis.title=element_text(size=25,face="bold"), legend.box = "horizontal",
+        panel.background = element_rect(fill="white", color = "black"), 
+        panel.grid.major = element_line(color = "white"), 
+  panel.grid.minor = element_blank(), plot.subtitle = element_text(face="bold", size=8, color="black", hjust=1.25),
+  legend.position=c(0.9, 0.3), legend.text = element_text(size = 11, colour = "black"), legend.key = element_rect(fill=NA), panel.border = element_rect(fill=NA,color="black", size=0.5, linetype="solid"), plot.title = element_text(face="bold", size=20, color="red", hjust=-0.22) ,
+legend.background = element_rect(fill =NA), legend.key.width = unit(2.2, "line"), legend.title=element_text(size=12, face="bold")) + 
+    ggsave("map5.png", units="in", width=11, height=7, dpi=600)
+```

@@ -1,0 +1,28 @@
+---
+title: "Canada Bird Counts"
+output: github_document
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(RColorBrewer)
+library(wesanderson)
+
+bird_counts <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-18/bird_counts.csv")
+
+summary(bird_counts)
+
+birds<- bird_counts %>%
+  mutate(type=ifelse(grepl('Owl', species), 'Owl', ifelse(grepl('Duck', species), "Duck", 'Other Species')),
+         count_k=how_many_counted/1000)
+
+table(birds$type)       
+         
+#split
+ggplot(birds, aes(y=total_hours, x=year, col=type)) +
+geom_point()+
+geom_smooth(method="lm", se=FALSE)+
+facet_grid(~type)+ scale_color_brewer(palette="RdYlBu") + theme_dark()
+
+
+```

@@ -1,0 +1,31 @@
+---
+title: "UFO sightings"
+output: github_document
+---
+
+#data and libraries
+```{r message=FALSE, warning=FALSE}
+ufo_sightings <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-25/ufo_sightings.csv")
+
+library(tidyverse)
+library(RColorBrewer)
+```
+
+#cleaning
+```{r message=FALSE, warning=FALSE}
+head(ufo_sightings$state) #how state abbrevs?
+head(ufo_sightings$date_time) #how dates stored?
+
+time.df<- ufo_sightings %>%
+  filter(ufo_shape==c("light", "triangle", "fireball", "disk")) %>%
+  mutate(year=yearExtract(date_time),
+         time=sub(".* ", "", date_time),
+         hour=as.numeric(substring(time, 1,2)))
+
+```
+
+#plots
+```{r message=FALSE, warning=FALSE}
+p <- ggplot(time.df, aes(x = hour, fill = ufo_shape))
+p + geom_area(stat = "count") + scale_fill_brewer(palette="RdBu") + theme_minimal() + ggtitle("Popular UFO sighting hours") + scale_x_continuous(breaks=c(0:25)) + xlab("Hour the UFO was sighted")
+```

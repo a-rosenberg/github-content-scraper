@@ -1,0 +1,136 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%",
+  dpi = 200,
+  message = F,
+  warning = F
+)
+
+devtools::load_all()
+library(tidyverse)
+```
+
+<!-- # anomalize -->
+# anomalize <img src="man/figures/anomalize-logo.png" width="147" height="170" align="right" />
+
+[![Travis build status](https://travis-ci.org/business-science/anomalize.svg?branch=master)](https://travis-ci.org/business-science/anomalize)
+[![Coverage status](https://codecov.io/gh/business-science/anomalize/branch/master/graph/badge.svg)](https://codecov.io/github/business-science/anomalize?branch=master)
+[![CRAN_Status_Badge](http://www.r-pkg.org/badges/version/anomalize)](https://cran.r-project.org/package=anomalize)
+![](http://cranlogs.r-pkg.org/badges/anomalize?color=brightgreen)
+![](http://cranlogs.r-pkg.org/badges/grand-total/anomalize?color=brightgreen)
+
+
+> Tidy anomaly detection
+
+`anomalize` enables a tidy workflow for detecting anomalies in data. The main functions are `time_decompose()`, `anomalize()`, and `time_recompose()`. When combined, it's quite simple to decompose time series, detect anomalies, and create bands separating the "normal" data from the anomalous data.
+
+## Anomalize In 2 Minutes (YouTube)
+
+<a href="https://www.youtube.com/watch?v=Gk_HwjhlQJs" target="_blank"><img src="http://img.youtube.com/vi/Gk_HwjhlQJs/0.jpg"
+alt="Anomalize" width="100%" height="350"/></a>
+
+Check out our entire [Software Intro Series](https://www.youtube.com/watch?v=Gk_HwjhlQJs&list=PLo32uKohmrXsYNhpdwr15W143rX6uMAze) on YouTube!
+
+## Installation
+
+You can install the development version with `devtools` or the most recent CRAN version with `install.packages()`:
+
+``` r
+# devtools::install_github("business-science/anomalize")
+install.packages("anomalize")
+```
+
+## How It Works
+
+`anomalize` has three main functions:
+
+- `time_decompose()`: Separates the time series into seasonal, trend, and remainder components
+- `anomalize()`: Applies anomaly detection methods to the remainder component.
+- `time_recompose()`: Calculates limits that separate the "normal" data from the anomalies!
+
+## Getting Started
+
+Load the `tidyverse` and `anomalize` packages.
+
+```{r, eval = F}
+library(tidyverse)
+library(anomalize)
+```
+
+
+Next, let's get some data.  `anomalize` ships with a data set called `tidyverse_cran_downloads` that contains the daily CRAN download counts for 15 "tidy" packages from 2017-01-01 to 2018-03-01.
+
+Suppose we want to determine which daily download "counts" are anomalous. It's as easy as using the three main functions (`time_decompose()`, `anomalize()`, and `time_recompose()`) along with a visualization function, `plot_anomalies()`.
+
+```{r tidyverse_anoms_1, fig.height=8}
+tidyverse_cran_downloads %>%
+    # Data Manipulation / Anomaly Detection
+    time_decompose(count, method = "stl") %>%
+    anomalize(remainder, method = "iqr") %>%
+    time_recompose() %>%
+    # Anomaly Visualization
+    plot_anomalies(time_recomposed = TRUE, ncol = 3, alpha_dots = 0.25) +
+    labs(title = "Tidyverse Anomalies", subtitle = "STL + IQR Methods") 
+```
+
+Check out the [`anomalize` Quick Start Guide](https://business-science.github.io/anomalize/articles/anomalize_quick_start_guide.html). 
+
+## Reducing Forecast Error by 32%
+
+Yes! Anomalize has a new function, `clean_anomalies()`, that can be used to repair time series prior to forecasting. We have a [brand new vignette - Reduce Forecast Error (by 32%) with Cleaned Anomalies](https://business-science.github.io/anomalize/articles/forecasting_with_cleaned_anomalies.html).
+```{r}
+tidyverse_cran_downloads %>%
+    filter(package == "lubridate") %>%
+    ungroup() %>%
+    time_decompose(count) %>%
+    anomalize(remainder) %>%
+  
+    # New function that cleans & repairs anomalies!
+    clean_anomalies() %>%
+  
+    select(date, anomaly, observed, observed_cleaned) %>%
+    filter(anomaly == "Yes")
+```
+
+
+## But Wait, There's More!
+
+There are a several extra capabilities:
+
+- `plot_anomaly_decomposition()` for visualizing the inner workings of how algorithm detects anomalies in the "remainder". 
+
+```{r, fig.height=7}
+tidyverse_cran_downloads %>%
+    filter(package == "lubridate") %>%
+    ungroup() %>%
+    time_decompose(count) %>%
+    anomalize(remainder) %>%
+    plot_anomaly_decomposition() +
+    labs(title = "Decomposition of Anomalized Lubridate Downloads")
+```
+
+For more information on the `anomalize` methods and the inner workings, please see ["Anomalize Methods" Vignette](https://business-science.github.io/anomalize/articles/anomalize_methods.html). 
+
+## References
+
+Several other packages were instrumental in developing anomaly detection methods used in `anomalize`:
+
+- Twitter's `AnomalyDetection`, which implements decomposition using median spans and the Generalized Extreme Studentized Deviation (GESD) test for anomalies.
+- `forecast::tsoutliers()` function, which implements the IQR method. 
+
+# Interested in Learning Anomaly Detection?
+
+Business Science offers two 1-hour courses on Anomaly Detection:
+
+- [Learning Lab 18](https://university.business-science.io/p/learning-labs-pro) - Time Series Anomaly Detection with `anomalize`
+
+- [Learning Lab 17](https://university.business-science.io/p/learning-labs-pro) - Anomaly Detection with `H2O` Machine Learning

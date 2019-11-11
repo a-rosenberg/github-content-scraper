@@ -1,0 +1,86 @@
+---
+title: ""
+author: "Cory Brunson"
+date: "2018 Aug 7"
+output: html_document
+---
+
+# Motivation
+
+In [his article](https://fivethirtyeight.com/features/should-travelers-avoid-flying-airlines-that-have-had-crashes-in-the-past/), Nate Silver explored different ways of assessing an airline's future risk of deadly (or near-deadly) incidents from past performance. His analysis is a valuable corrective to the reflexive reaction many of us have toward high-profile crashes. Moreover, his takeaway that safety concerns should, if anything, motivate us to avoid airlines maintained in developing countries reminds us the most familiar explanations for catastrophes---lack of financial, cultural, and political resources---are familiar for good reason.
+
+Silver's takeaway visualization compared home countries' GDP and airlines' safety scores along parallel one-dimensional diverging-color tilings. He stakes the claim that these scores---averages of standardizations of the original measures---provide a more valuable measure of each airline's relative safety performance.
+
+One of the admittedly nice things about these visuals is that they don't require legends---people can usually intuit the meanings of the deeper versus fainter colors and between the extremes. (Shoutout to [ColorBrewer](http://colorbrewer2.org/), [ColorOracle](http://www.colororacle.org/), and other tools to facilitate colorblind figures!)
+
+My personal preference is to preserve as much quantitative information as possible, so i'd like to be sold this message using a more boring scatterplot.
+I'd also like to see whether the safety scores themselves are predictive from the earlier interval to the latter, so i'll calculate them separately and take them to be the coordinate axes.
+
+# Production
+
+Here's the setup:
+
+```{r setup}
+if (! "fivethirtyeight" %in% rownames(installed.packages())) {
+  install.packages("fivethirtyeight")
+}
+data(airline_safety, package = "fivethirtyeight")
+library(tidyverse)
+```
+
+The data is already thoroughly processed, but Silver's custom _airline safety score_ has not already been caculated. I'll calculate these scores using **dplyr** and produce the scatterplot using **ggplot2**. I'll also take advantage of the variable naming scheme to restructure the data using **tidyr**, slightly reducing repetitiveness.[^dry] In order to more easily test the incomplete analysis pipeline along the way, i'll connect these steps with **magrittr** pipes.
+
+[^dry]: I recently learned that software developers use the initialism "DRY"---_don't repeat yourself_. The reason for doing this isn't that it saves time in this particular case, of course---there are only three measures---but that it lowers the ceiling on future time expenditure by allowing additional variables to be added to the dataset without overhauling the script.
+
+```{r calculate safety scores}
+airline_safety %>%
+  # restructure variables
+  gather("variable", "value", ends_with("_85_99"), ends_with("_00_14")) %>%
+  mutate(variable = str_replace(variable, "([a-z])_([0-9])", "\\1___\\2")) %>%
+  separate("variable", c("measure", "interval"), sep = "___") %>%
+  # calculate airline safety scores
+  group_by(measure) %>%
+  mutate(meas_mean = mean(value), meas_cent = meas_mean - value) %>%
+  # note: must include `measure` again here
+  mutate(meas_mult = meas_cent * sqrt(avail_seat_km_per_week)) %>%
+  mutate(meas_std = (meas_mult - mean(meas_mult)) / sd(meas_mult)) %>%
+  ungroup() %>%
+  # note: remove `value` to avoid confusion (`NA`s)
+  select(-value, -meas_mean, -meas_cent, -meas_mult) ->
+  airline_std
+```
+
+```{r reorganize data}
+airline_std %>%
+  # generate scatterplots of safety scores
+  spread(interval, meas_std) %>%
+  rename_at(vars(matches("[0-9]{2}_[0-9]{2}")), funs(paste0("std_", .))) %>%
+  # average standardized scores across all three measures
+  group_by(airline) %>%
+  summarize_at(c("std_85_99", "std_00_14"), mean) %>%
+  ungroup() ->
+  airline_scores
+```
+
+```{r generate scatterplots}
+airline_scores %>%
+  ggplot(aes(x = std_85_99, y = std_00_14, label = airline)) +
+  theme_bw() +
+  coord_fixed() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  labs(x = "1985-99", y = "2000-14") +
+  geom_point(alpha = .5) +
+  ggtitle("Safety scores: first versus second interval") ->
+  airline_scatterplot
+print(airline_scatterplot)
+```
+
+# Conclusion
+
+My immediate takeaway is that, though the safety score integrates all three intuitive measures of safety, it doesn't completely resolve the outlier problem Silver mentioned in his article: The airlines that experienced exceptional numbers of incidents or casualties expand farther into Quadrant III instead of I, but they're still conspicuous, and they still make the correlation more difficult to detect. Nevertheless, it's easy to see that, after (or even after) the outliers are removed, the bulk of data points display a clear correlation---in contrast to the original separate measures. I'm convinced!
+
+Finally, here's a JPEG to post on Twitter:
+
+```{r save scatterplot}
+ggsave("airline-scatterplot.jpg", airline_scatterplot, height = 4, width = 7)
+```

@@ -1,0 +1,183 @@
+---
+author:
+- name: Sangeeta Bhatia
+date: "`r Sys.Date()`"
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 11pt
+spacing: double
+bibliography: 
+biblio-style: apsr
+endnote: no
+output: html_document
+---
+
+```{r setup, eval = TRUE}
+library(tidyverse)
+library(ggthemes)
+library(viridis)
+library(gganimate)
+```
+
+# Data wrangling
+
+```{r}
+global_mortality <- here::here("week_3/data", "global_mortality.xlsx") %>%
+  readxl::read_xlsx(.)
+```
+
+Clean up the names for easy access but save the names for pretty 
+plotting.
+
+```{r}
+names(global_mortality) <- str_trim(
+  str_remove_all(names(global_mortality), "[[:punct:]]")
+)
+causes <- colnames(global_mortality)[ -c(1, 2, 3)]
+
+
+
+```
+
+Wide to tall so that we can group by countries or causes of death etc.
+
+```{r}
+
+mortality_tall <- tidyr::gather(
+  data = global_mortality,
+  key = "cause",
+  value = "percent",
+  -c(country, countrycode, year),
+  factor_key = TRUE
+  )
+
+```
+Sum by year for each country.
+
+```{r}
+mortality_country <- group_by(mortality_tall, country, cause) %>%
+  summarise(percent = sum(percent, na.rm = TRUE))
+```
+Rows where country code is NA are actually groups of countries rather
+than a single country. The groups are overlapping (e.g., countries are
+grouped according to geographic region as well as SDI). We can explore
+each group separately.
+
+
+
+```{r}
+regions <- c(
+  "Andean Latin America",
+  "Central Latin America",
+  "Tropical Latin America",
+  "Latin America and Caribbean",
+  "Southern Latin America",
+  "North America",
+  "Caribbean",
+  "Australasia",
+  "Oceania",
+  "East Asia",
+  "South Asia",
+  "Central Asia",
+  "Southeast Asia",
+  "Eastern Europe",
+  "Central Europe",
+  "Western Europe",
+  "North Africa and Middle East",
+  "Eastern Sub-Saharan Africa",
+  "Central Sub-Saharan Africa",
+  "Western Sub-Saharan Africa",
+  "Southern Sub-Saharan Africa",
+  "Sub-Saharan Africa"
+)
+
+country_groups <- filter(mortality_tall, country %in% regions) %>%
+    droplevels()
+
+```
+
+Re-arrange country groups geographically.
+
+```{r}
+country_groups$country <- factor(
+  country_groups$country,
+  levels = regions
+)
+```
+## Leading causes of death in each geographical region
+
+```{r, fig.show = "animate", interval = 2}
+
+p <- ggplot(country_groups, aes(country, cause, frame = year)) +
+  geom_tile(aes(fill = percent)) +
+  scale_fill_viridis(name = "% Population") +
+  theme_tufte() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("County Group") + ylab("Cause") +
+  theme(legend.title = element_blank())
+
+gganimate(p)
+
+```
+
+## Leading causes of death by SDI
+
+```{r, fig.show = "animate", interval = 2}
+sdi <- c(
+  "High SDI",
+  "High-middle SDI",
+  "Middle SDI",
+  "Low-middle SDI",
+  "Low SDI"
+)
+
+sdi_groups <- filter(mortality_tall, country %in% sdi) %>%
+  droplevels()
+
+sdi_groups$country <- factor(
+  sdi_groups$country,
+  levels = sdi
+)
+
+p2 <- ggplot(sdi_groups, aes(country, cause, frame = year)) +
+  geom_tile(aes(fill = percent)) +
+  scale_fill_viridis(name = "% Population") +
+  theme_tufte() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  xlab("") + ylab("Cause")
+
+gganimate(p2)
+
+```
+
+## Leading causes of death in the UK
+
+```{r}
+uk <- c("England", "Northern Ireland", "Scotland", "Wales")
+uk_groups <- filter(mortality_tall, country %in% uk) %>%
+  droplevels()
+
+```
+Let us look at the top 10 causes rather than the whole data set.
+```{r}
+top_10 <- group_by(uk_groups, country, year) %>%
+    top_n(n = 10, wt = percent)  %>%
+    droplevels() %>%
+    pull(cause) %>% unique
+
+uk_groups <- filter(uk_groups, cause %in% top_10) %>% droplevels()
+
+```
+
+```{r fig.show = "animate", interval = 2}
+uk_groups$country <- factor(
+  uk_groups$country,
+  levels = uk
+)
+
+p3 <- ggplot(uk_groups, aes(percent, cause, col = country, frame = year)) +
+      geom_point(aes(size = percent)) + theme_tufte()
+
+gganimate(p3)
+
+```

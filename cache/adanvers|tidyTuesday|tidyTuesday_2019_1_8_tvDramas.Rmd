@@ -1,0 +1,98 @@
+---
+title: 'Tidy Tuesday Jan 8 2019: TV Dramas'
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+```
+
+This is the first contribution to Tidy Tuesdays of Alex Danvers.
+
+The data set contains information on TV Dramas from 1990 to 2018, including ratings, shares, and secondary categorizations of the shows.
+
+In this document I explore changes in the common secondary classifications of dramas over time. This may give insight into the kinds of dramas that have been popular across different decades--dramas mixed with action, or with comedy, etc.
+
+# Read in the Data
+
+```{r read and explore data}
+# read in data
+tvData <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-01-08/IMDb_Economist_tv_ratings.csv")
+
+### examine basic characteristics of data
+dim(tvData)
+head(tvData)
+
+# we should convert the date info from an integer to a date format
+tvData$dateFormatted <- date(tvData$date)
+
+# then we can save just the year, to simplify future viewing
+tvData$year <- year(tvData$dateFormatted)
+
+# what range does the data span?
+range(tvData$dateFormatted)
+
+# how many unique shows?
+length(unique(tvData$title))
+
+# how many genres?
+length(unique(tvData$genres))
+# 97! but this includes "combo genres"
+```
+
+The data set had a single genre variable, saved as a string, that includes multiple categorizations, separated by commas. Each TV show can have 1, 2, or 3 categorizations. This means that assessments of the secondary categorizations of TV shows are not mutually exclusive: more action shows doesn't necessarily mean less of other shows, because the total number of secondary categories is not constant from year to year. 
+
+```{r create genre categorizations}
+# create list of all genres
+genres <- unique(unlist(strsplit(as.character(tvData$genres), ",")))
+
+# looping through each genre to create dummy codes
+for (i in 1:length(genres)) {
+  tvData[,genres[i]] <- as.numeric(grepl(genres[i], as.character(tvData$genres)))
+}
+
+# examine overall rates of all categories
+colMeans(tvData[,genres])
+
+# save the most common secondary categories
+commonCats <- which(colMeans(tvData[,genres]) > .10)
+
+# create a data set that contains the proportion of genre by year
+genreProps <- tvData %>%
+  group_by(year) %>%
+  summarise_at(mean, .vars=genres) %>%
+  gather(key="genreCat", value="Proportion", genres[2:length(genres)])
+```
+
+# Create the Final Plot
+
+In the plot below, we plot the change over time in common secondary categorizations of TV dramas.
+
+A red dotted line has been placed at the 25% mark, for ease of reference.
+
+Plots also have a black loess line superimposed on them to track the shape of the data.
+
+```{r plot}
+ggplot(data=genreProps[which(genreProps$genreCat %in% names(commonCats)),], aes(y=Proportion, x=year))+
+  geom_line(aes(color=genreCat))+
+  geom_point(aes(color=genreCat))+
+  geom_line(stat="smooth", method="loess", se=FALSE, color="black", lty=1, alpha=0.75)+
+  theme_bw()+
+  facet_grid(.~genreCat)+
+  geom_hline(yintercept=0.25, lty=2, color="red")+
+  theme(legend.position="none", plot.title=element_text(hjust=0.5))+
+  labs(title="Common Secondary Categorizations \n of Dramas from '90 to '18")+
+  scale_x_continuous(breaks=c(1990,2000,2010),
+                     labels=c("'90","'00","'10"))
+```
+
+This plot suggests that drama/comedies were most common in the early 90's, but declined to below 25% by ~95. Around 95 there was a brief spike in drama/action shows, but this trend was shortlived. From around 2000 to 2010 the number of drama/crime shows increased, but they have declined in recent years. 
+
+There was also a small rise in drama/romance shows from 1990 to ~2005, but the proportion of these shows has declined in the last decade. There were small fluctuations in the proportion of drama/mysteries over this time period, and this genre is now in decline.
+
+Currently the most popular secondary genre for a drama is crime.
+

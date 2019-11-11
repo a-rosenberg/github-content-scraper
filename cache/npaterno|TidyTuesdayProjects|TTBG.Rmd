@@ -1,0 +1,97 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#load Tidyverse library and download data from Github TidyTuesday repository
+```{r}
+library(tidyverse)
+
+board_games <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-12/board_games.csv")
+```
+
+#Filter board games to those that last no more than three hours for 8 players or less. These are games my family might play during get togethers.
+
+```{r}
+bg_fam<-board_games %>%
+  filter(max_playtime<=180 & max_players<=8)
+```
+
+#rename "max_players" to "Players"
+```{r}
+colnames(bg_fam)[colnames(bg_fam)=="max_players"] <- "Players"
+```
+
+#plot to compare year published and average rating, faceted by number of players
+```{r}
+ggplot(bg_fam,aes(x=year_published,y=average_rating,color=playing_time))+
+  geom_point(alpha=0.2)+
+  facet_wrap(~ Players, labeller=label_both)+
+  scale_color_gradient(name="Playing Time",low="blue",high="red")+
+  theme_bw()+
+  xlab("Year")+
+  ylab("Average Rating")
+```
+
+#calculate the average rating per year published
+```{r}
+bg_year<-board_games %>%
+  group_by(year_published)%>%
+  summarize(mean=mean(average_rating, na.rm=TRUE))
+```
+
+#plot to compare year published and average rating with linear mean
+```{r}
+ggplot()+
+  geom_point(data=board_games, mapping=aes(x=year_published,y=average_rating,color=min_age),alpha=0.2)+
+  geom_line(data=bg_year,mapping=aes(x=year_published,y=mean))+
+  xlab("Year")+
+  ylab("Average Rating")+
+  theme_bw()+
+  scale_color_gradient(name="Minimum Age", low="blue", high="red")
+```
+
+#filter our card games
+```{r}
+bg_card<-board_games %>%
+  filter(str_detect(category, "Card"))
+```
+#calculate the average rating of card games by year published
+```{r}
+bg_card_year <-bg_card%>%
+  group_by(year_published)%>%
+  summarize(mean=mean(average_rating),na.rm=TRUE)
+```
+
+#plot to compare year published and average rating of card games
+```{r}
+ggplot()+
+  geom_hex(data=bg_card,aes(x=year_published,y=average_rating))+
+  geom_line(data=bg_card_year,mapping=aes(x=year_published,y=mean))+
+  xlab("Year")+
+  ylab("Average Rating")+
+  theme_bw()
+```
+
+#filter out dice gaemes
+```{r}
+bg_dice<-board_games %>%
+  filter(str_detect(category,"Dice"))
+```
+
+#calculate average rating of dice games by year published
+```{r}
+bg_dice_year<-bg_dice %>%
+  group_by(year_published)%>%
+  summarize(mean=mean(average_rating),na.rm=TRUE)
+```
+
+#plot to compare year published and average rating of dice games
+```{r}
+ggplot()+
+  geom_hex(bg_dice,mapping=aes(x=year_published,y=average_rating))+
+  geom_line(bg_dice_year,mapping=aes(x=year_published,y=mean))+
+  xlab("Year")+
+  ylab("Average Rating")+
+  theme_bw()
+```

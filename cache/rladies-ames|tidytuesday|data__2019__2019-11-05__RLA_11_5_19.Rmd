@@ -1,0 +1,38 @@
+---
+title: "RLA_11_5_19"
+author: "Stephanie Reinders"
+date: "11/5/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Data on Bicycling and Walking to Work in the US
+```{r}
+d <- read.csv('commute.csv')
+```
+
+```{r}
+summary(d)
+```
+
+## Iowa Bicyclists and Walkers
+```{r}
+d %>% filter(state=='Iowa',mode=='Bike') %>% 
+  ggplot(aes(x=as.factor(city),y=percent,color=city)) +
+  geom_point() +
+  coord_flip()
+```
+
+
+```{r}
+d %>% filter(state=='Iowa',mode=='Walk') %>% 
+  ggplot(aes(x=as.factor(city),y=percent,color=city)) +
+  geom_point() +
+  coord_flip()
+```
+
+

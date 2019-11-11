@@ -1,0 +1,347 @@
+---
+title: "Open Policing - Raleigh"
+author: "Otho"
+date:  "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Reproduce Nadieh Bremer and Zan Armstrong famouse [Baby Spike visualization](https://www.visualcinnamon.com/portfolio/baby-spike)
+
+```{r}
+library(tidyverse)
+library(rlang)
+library(lubridate)
+library(scales)
+library(cowplot)
+
+# weekdays in english
+Sys.setlocale("LC_TIME", "en_US.UTF8")
+```
+
+
+```{r}
+dat_path <- "data/2-12-open-policing.Rdata"
+
+# data for Raleigh, because I have been there
+dat_url <- paste0("https://stacks.stanford.edu/",
+                  "file/druid:tr137st9964/tr137st9964",
+                  "_nc_raleigh_2019_02_25.csv.zip")
+
+if(!file.exists(dat_path)) {
+  # one temporary file zipped
+  # and one with the csv
+  temp <- tempfile()
+  temp2 <- tempfile()
+  download.file(dat_url, destfile = temp)
+  
+  temp2 <- unzip(temp)
+  
+  raleigh <- read_csv(temp2)
+  
+  save(raleigh, file = dat_path)
+} else {
+  load(dat_path)
+}
+```
+
+# explore
+
+I guess that the `time` variable is measured in seconds of the day
+
+```{r}
+raleigh$time %>% range(na.rm = TRUE)
+# Time differences in secs
+# [1]     1 86399
+```
+
+# Use loess.
+
+```{r}
+day_sec <- 60*60*24
+
+# how many weeks in the dataset?
+week_span <- raleigh$date %>%
+  {lubridate::interval(start = min(.), end = max(.))} %>% 
+  time_length()/(24*60*60*7) %>% 
+  round()
+
+
+
+# bin stops per minute
+by_minute <- 
+  raleigh %>%  
+  mutate(mins = as_double(time) %/% 60,
+         weekday = weekdays(date)) %>% 
+  group_by(mins, weekday) %>% 
+  count() %>% 
+  # na.omit() %>%
+  # strange measurements at 0
+  # probably tecnical issue
+  filter(mins > 0) %>% 
+  # devide by weeks in dataset
+  mutate(n = n/week_span)
+
+
+# check
+# span <- 1/30
+span <- 1/20
+by_minute %>% 
+  ggplot(aes(x = mins, y = n)) +
+  stat_smooth(method = "loess", span = span) +
+  geom_point(shape = ".") +
+  facet_grid(weekday ~ .)
+
+by_mins_list <- 
+  by_minute %>% 
+  split(.$weekday)
+
+# smooth 
+smooth_obj <- 
+ by_mins_list %>% 
+  map(., ~loess(formula = "n ~ mins",
+         data = .,
+         span = span))
+
+
+# prediction
+preds <- 
+  smooth_obj %>% 
+  map(., ~predict(., se = T))
+  
+# join fitted values and 
+# original data
+min_smooth <- 
+  names(preds) %>% 
+  map(.x = .,
+      .f = ~preds[[.x]] %>% 
+      {tibble(mins = names(.$fit) %>% as.numeric(),
+              fitted = .$fit,
+              se = .$se,
+              weekday = .x)} %>% 
+        full_join(by_mins_list[[.x]])) %>% 
+  reduce(bind_rows) %>% 
+  # reset weekdays order %>% 
+  mutate(weekday = factor(weekday, 
+                          levels = c("Sunday", 
+                                     "Monday",
+                                     "Tuesday",
+                                     "Wednesday",
+                                     "Thursday",
+                                     "Friday",
+                                     "Saturday"))) %>% 
+  # label mins and max
+  group_by(weekday) %>% 
+  mutate(min_max = case_when(fitted == max(fitted) ~ TRUE,
+                             fitted == min(fitted) ~ TRUE,
+                             TRUE ~ FALSE)) %>% 
+  ungroup()
+
+# check
+min_smooth %>% 
+  ggplot(aes(x = mins, y = n)) +
+  geom_line(aes(y = fitted)) +
+  geom_point(shape = ".") +
+  facet_grid(weekday ~ .)
+
+
+# try ribbon
+med_y <- mean(min_smooth$n)
+
+# cool, a bit by chance
+p <- 
+  min_smooth %>% 
+  ggplot(aes(x = mins)) +
+  geom_hline(yintercept = med_y,
+             colour = "#B63A82") +
+  geom_ribbon(aes(ymin = med_y,
+                  ymax = fitted),
+              fill = "grey80",
+             colour = "#27A6D3") +
+  geom_point(aes(y = n),
+             shape = ".") +
+  ylim(0, NA) +
+  theme_minimal()
+p
+
+p + facet_grid(weekday ~ .)
+
+fill_up <- "#3752C3"
+```
+
+# some parameter
+
+```{r}
+grid_dist <- .04
+grid_at <- c(med_y - grid_dist,
+             med_y,
+             med_y + grid_dist)
+color_annos <- "grey60"
+ext <- 50
+offset <- rescale(ext,
+                  from = c(0, 24*60 + 2*ext),
+                  to = c(0, 2*pi))
+hours_guide <- seq(4, 20, by = 4)
+```
+
+
+# Try round
+
+```{r}
+min_smooth_list <- 
+  min_smooth %>% 
+  split(.$weekday)
+
+plot_circles <- function(weekd) {
+  # Draft plot ----------------------------------
+  to_plot <-  min_smooth_list[[weekd]]
+  
+  p <- 
+  to_plot %>% 
+    mutate(verso = case_when(fitted > med_y ~ "up",
+                             TRUE ~ "down")) %>% 
+    ggplot(aes(x = mins)) +
+    # geom_hline(yintercept = 0) +
+    geom_ribbon(aes(ymin = med_y,
+                    ymax = fitted,
+                    fill = verso),
+                colour = "grey15",
+                size = .3) +
+    # facet_grid(. ~ weekday) +
+    # facet_wrap(facets = "weekday") +
+    scale_fill_manual(values = c(down = "#27A6D3", # "#4C63C3",
+                                 up = "#FF6C0D"),
+                      guide = FALSE) +
+    coord_polar(start = offset) +
+    theme_void() +
+    theme(legend.position = "top")
+  
+  # adjust limits -------------------------
+  p1 <- 
+    p + 
+    lims(x = c(0, 1440) + c(0, 2*ext),
+         y = c(-.02, max(min_smooth$fitted)))
+  
+  # Add a y guide -----------------------------
+  p2 <- 
+    p1 + 
+    geom_hline(yintercept = grid_at,
+               colour = color_annos,
+               size = .1,
+               lty = 2) +
+    annotate(geom = "rect",
+             ymin = 0,
+             ymax = max(min_smooth$fitted),
+             xmin = 24*60,
+             xmax = 24*60 + 2*ext,
+             fill = "white") +
+    geom_text(data = tibble(mins = 24*60 + ext,
+                            fitted = grid_at,
+                            label = grid_at),
+              aes(y = fitted,
+                  label = label %>% round(2)),
+              size = 2,
+              colour = color_annos) 
+  
+  # Add an x guide
+  p3 <- 
+    p2 +
+    geom_text(data = tibble(mins = hours_guide*60,
+                            hours_guide = hours_guide) %>% 
+                left_join(to_plot),
+              aes(y = case_when(fitted < med_y ~ med_y + .01,
+                                fitted >= med_y ~ med_y - .01),
+                  label = hours_guide,
+                  angle = rescale(mins,
+                                  from = c(0 - ext, 1440 + ext),
+                                  to = c(360, 0)),
+                  vjust = case_when(fitted > med_y ~ 1,
+                                    fitted < med_y ~ 0)),
+              colour = color_annos,
+              size = 2)
+  
+  # Add day label -------------------------------
+  p4 <- 
+    p3 +
+    annotate(geom = "text",
+             x = 0, 
+             y = 0,
+             label = weekd,
+             size = 2.6,
+             colour = "#DE1288", # "grey30", 
+             fontface = "italic")
+  
+  # Add arrow
+  p5 <- 
+    p4 +
+    geom_line(data = tibble(mins = c(0, 24*60 + 10),
+                            fitted = c(med_y, med_y)),
+              aes(y = fitted),
+              size = .8,
+              arrow = arrow(ends = "last",
+                            length = unit(2, "mm"),
+                            type = "closed"),
+              colour = "#DE1288")
+              
+  return(p5)
+}
+
+p_list <- 
+  names(min_smooth_list) %>% 
+  map(plot_circles)
+```
+
+# Arrange
+
+```{r}
+
+y_small <- -.15
+s_small <- 1/5
+
+p <- 
+  ggdraw() +
+  draw_plot(p_list[[1]], 0, y_small, s_small, 1) +
+  draw_plot(p_list[[2]], 1/6, y_small, s_small, 1) +
+  draw_plot(p_list[[3]], 2/6, y_small, s_small, 1) +
+  draw_plot(p_list[[4]], 1/3, .25, 1/3, 1) +
+  draw_plot(p_list[[5]], 3/6, y_small, s_small, 1) +
+  draw_plot(p_list[[6]], 4/6, y_small, s_small, 1) +
+  draw_plot(p_list[[7]], 5/6, y_small, s_small, 1) +
+  draw_text(text = str_wrap("I can't imagine why police stops 
+                             drop at these hours.
+                             Dinner time?", 20),
+            x = 2/6, y = .7,
+            size = 10, colour = color_annos) +
+  draw_text(text = "Average Police Stops Per Minute of the Day",
+            x = 1, y = .18,
+            size = 18, colour = "grey40",
+            hjust = 1) +
+  draw_text(text =str_wrap("Recorded in Raleigh, NC., between
+                           2002 and 2015. These data are gathered and
+                           maintained by the
+                           Stanford Open Policing Project.", 90),
+            x = 1, y = .12,
+            size = 12, colour = "grey40",
+            lineheight = .9,
+            hjust = 1) +
+  draw_text(text = paste0("Data from Stanford Open Policing Project.\n",
+                        "Plot inspired to the design by\n",
+                        "Nadieh Bremer and Zan Armstrong for the\n",
+                        "Baby Spike article in Scientific American.\n",
+                        "Plot done by @othomn in ggplot2."),
+            x = 1, y = .9,
+            size = 10, colour = "grey40",
+            lineheight = .9,
+            hjust = 1)
+```
+
+# save SVG
+
+```{r}
+svglite::svglite(file = "plots/2-12-open-policing-rounds.svg",
+                 width = 15)
+p
+dev.off()
+```
+

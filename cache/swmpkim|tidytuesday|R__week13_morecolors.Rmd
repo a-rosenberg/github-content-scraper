@@ -1,0 +1,156 @@
+---
+title: "Tidy Tuesday Week 13"
+output: 
+    github_document: 
+        toc: yes
+    html_notebook: 
+        toc: yes
+---
+
+Mostly playing with color palettes here.
+
+# Setup and Data import
+
+## libraries
+
+```{r}
+# week 13
+
+library(tidyverse)
+library(skimr)
+library(paletteer)
+```
+
+## import and look at
+
+```{r}
+dat <- read.csv("../data/week13_alcohol_global.csv")
+
+skim(dat)
+head(dat)
+```
+
+
+## reshape
+
+Only select top 4 countries for easier-to-see plots
+```{r}
+# reshape so I can group and make faceted plots
+# top_n to pull out 40 countries with highest consumption
+# make country a factor
+# gather() to put it in long format
+dat2 <- dat %>%
+    rename(beer = beer_servings,
+           wine = wine_servings,
+           spirits = spirit_servings) %>%
+    top_n(4, total_litres_of_pure_alcohol) %>%  
+    mutate(country = as.factor(country)) %>%  
+    gather(key = "alc_type", value = "value", 
+           -country, -total_litres_of_pure_alcohol) 
+```
+
+
+# Plotting  
+
+## Scatterplot Matrix
+
+```{r}
+# scatterplot matrix
+# (everything against everything else)
+plot(dat, main = "Scatterplot Matrix")
+```
+
+## Bar chart with ggplot
+```{r}
+
+# exploratory bar chart
+p <- ggplot(dat2, aes(x = alc_type, y = value, fill = alc_type)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~country, ncol = 2) +
+    theme_bw() +
+    labs(title = "Amount of alcohol consumed by type", 
+         subtitle = "4 countries with highest total litres of pure alcohol", 
+         x = "alcohol type", 
+         y = "# servings")
+```
+
+Default color palette
+```{r}
+p
+```
+
+
+### RColorBrewer
+
+scale_fill_brewer from Paired palette
+
+```{r}
+p + scale_fill_brewer(type = "qual", palette = "Paired")
+```
+
+
+Dark2 palette
+
+```{r}
+p + scale_fill_brewer(type = "qual", palette = "Dark2")
+```
+
+
+### Paletteer package  
+
+#### Discrete, non-dynamic palettes
+
+Nord aurora
+```{r}
+p + scale_fill_paletteer_d(nord, aurora)
+```
+
+
+Nord polarnight
+```{r}
+p + scale_fill_paletteer_d(nord, polarnight)
+```
+
+Nord snowstorm
+```{r}
+p + scale_fill_paletteer_d(nord, snowstorm)
+```
+
+quickpalette beach
+```{r}
+p + scale_fill_paletteer_d(quickpalette, beach)
+```
+
+quickpalette waterfall
+```{r}
+p + scale_fill_paletteer_d(quickpalette, waterfall)
+```
+
+quickpalette sunset
+```{r}
+p + scale_fill_paletteer_d(quickpalette, sunset)
+```
+
+
+rcartocolor ag_Sunset
+```{r}
+p + scale_fill_paletteer_d(rcartocolor, ag_Sunset)
+```
+
+
+rcartocolor TealRose
+```{r}
+p + scale_fill_paletteer_d(rcartocolor, TealRose)
+```
+
+
+rcartocolor TealGrn
+```{r}
+p + scale_fill_paletteer_d(rcartocolor, TealGrn)
+```
+
+rcartocolor Geyser
+```{r}
+p + scale_fill_paletteer_d(rcartocolor, Geyser)
+```
+
