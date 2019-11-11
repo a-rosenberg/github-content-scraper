@@ -3,13 +3,9 @@ Tools to create, manage and interact with Sqlite3 Database
 """
 import sqlite3
 import logging
-import os
 
 from typing import List, Dict
 from sqlite3 import Error as SqliteError
-
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'content.db')
 
 
 GIT_CONTENT_DEFINITION = ('CREATE TABLE IF NOT EXISTS content ('
