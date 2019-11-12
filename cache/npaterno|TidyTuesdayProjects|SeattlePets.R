@@ -1,0 +1,85 @@
+## ------------------------------------------------------------------------
+library(tidyverse)
+
+## ------------------------------------------------------------------------
+seattle_pets <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-26/seattle_pets.csv")
+
+
+## ------------------------------------------------------------------------
+seattle_pets<-seattle_pets%>% 
+  rename(PetName='animals_name',PBreed='primary_breed')
+
+
+## ------------------------------------------------------------------------
+dogs<-seattle_pets%>%
+  filter(species=="Dog")%>%
+  select(c(PetName,species,PBreed))
+
+cats<-seattle_pets%>%
+  filter(species=="Cat")%>%
+  select(c(PetName,species,PBreed))
+
+#Ended up not using the other data yet. 
+other<-seattle_pets%>%
+  anti_join(dogs)%>%
+  anti_join(cats)
+
+
+## ------------------------------------------------------------------------
+dogs_counted<-dogs%>%
+  group_by(PetName)%>%
+  summarize(count=n())%>%
+  top_n(n=10,wt=count)
+
+dogs_counted$PetName <- factor(dogs_counted$PetName) %>%
+  fct_reorder(dogs_counted$count)
+
+cats_counted<-cats%>%
+  filter(!is.na(PetName))%>%
+  group_by(PetName)%>%
+  summarize(count=n())%>%
+  top_n(n=10,wt=count)
+
+cats_counted$PetName <- factor(cats_counted$PetName) %>%
+  fct_reorder(cats_counted$count)
+
+all_counted<-seattle_pets%>%
+  filter(!is.na(PetName))%>%
+  group_by(PetName)%>%
+  summarize(count=n())%>%
+  top_n(n=10,wt=count)
+
+all_counted$PetName <- factor(all_counted$PetName) %>%
+  fct_reorder(all_counted$count)
+
+
+## ------------------------------------------------------------------------
+dog_names<-ggplot()+
+  geom_col(data=dogs_counted,mapping=aes(x=PetName,y=count), fill="navy blue")+
+  labs(title="Top Dog Names in Seattle",x="Name",y="Total")+
+  coord_flip()+
+  theme_bw()
+png("~/R/Tidy Tuesday/SeattlePetNames/dog_names.png",
+    width = 200, height = 150, res = 500, units = 'mm')
+print(dog_names)
+
+## ------------------------------------------------------------------------
+cat_names<-ggplot()+
+  geom_col(data=cats_counted,mapping=aes(x=PetName,y=count), fill="dark green")+
+  labs(title="Top Cat Names in Seattle",x="Name",y="Total")+
+  coord_flip()+
+  theme_bw()
+png("~/R/Tidy Tuesday/SeattlePetNames/cat_names.png",
+    width = 200, height = 150, res = 500, units = 'mm')
+print(cat_names)
+
+## ------------------------------------------------------------------------
+all_names<-ggplot()+
+  geom_col(data=all_counted,mapping=aes(x=PetName,y=count),fill="dark red)+
+  labs(title="Top Pet Names in Seattle",x="Name",y="Total")+
+  coord_flip()+
+  theme_bw()
+png("~/R/Tidy Tuesday/SeattlePetNames/all_names.png",
+    width = 200, height = 150, res = 500, units = 'mm')
+print(all_names)
+

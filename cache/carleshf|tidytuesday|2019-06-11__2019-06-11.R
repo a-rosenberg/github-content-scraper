@@ -1,0 +1,69 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ---- message=FALSE, warning=FALSE---------------------------------------
+library(tidyverse)
+library(ggplot2)
+library(imager)
+library(ggthemes)
+
+
+## ---- message=FALSE, warning=FALSE---------------------------------------
+meteorites <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-11/meteorites.csv")
+
+
+## ------------------------------------------------------------------------
+meteorites <- meteorites %>% mutate(log_mass = log(mass + 1))
+
+
+## ---- fig.width=10-------------------------------------------------------
+world <- ggplot() +
+  borders("world", colour = "#353535", fill = "#353535") +
+  theme_map()
+
+meteorites2 <- meteorites %>% filter(year >= 2010)
+
+plot_meteor <- world + 
+  geom_point(data = meteorites2, aes(x = long, y = lat, size = log_mass), color = "#ffa500", alpha = 0.7) +
+  theme(legend.position = "none")
+
+ggsave(plot_meteor, file = "plot_meteor.jpg")
+
+plot_meteor
+
+
+## ---- fig.width=10-------------------------------------------------------
+im <- load.image("plot_meteor.jpg") 
+
+# Select characters to use
+asc <- gtools::chr(38:126)
+
+# Convert to grayscale
+g.chr <- function(chr) implot(imfill(50, 50, val = 1),text(25, 25, chr, cex = 5)) %>% grayscale %>% mean
+
+# Map characters to grayscale
+g <- map_dbl(asc, g.chr)
+
+char <- asc[order(g)]
+#Convert image to grayscale, resize, convert to data.frame
+d <- grayscale(im) %>% imresize(.1)  %>% as.data.frame
+d <- d %>% mutate(qv = cut_width(value, 0.01) %>% as.integer) # Better is cut_number, but for real pictures only
+d <- mutate(d,char=char[qv])
+
+ascii_plot <- ggplot(d,aes(x,y)) + 
+  geom_text(aes(label=char),size=1) + 
+  scale_y_reverse() +
+  theme_clean() +
+  theme(
+    panel.border = element_blank(),
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_blank()
+  )
+ggsave(ascii_plot, file = "ascii_meteor.png")
+
+ascii_plot
+

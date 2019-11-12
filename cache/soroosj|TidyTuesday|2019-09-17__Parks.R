@@ -1,0 +1,78 @@
+## ----source, warning = TRUE, results = FALSE, message = FALSE------------
+
+   library (tidyverse)
+   library (janitor) 
+
+   visits_raw <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/national_parks.csv") %>%
+      clean_names ()
+
+
+## ----transform, message = F, results = F---------------------------------
+
+   visits <- visits_raw %>%
+      filter (
+         unit_type == "National Park",
+         unit_name != "Total",
+         year %in% c(1995, 2005, 2015)
+         ) %>%
+      select(year, unit_code, unit_code, unit_name, state, visitors) %>%
+      mutate (year = as.numeric (year)) %>%
+      arrange (-year, -visitors) %>%
+      group_by (year) %>%
+      mutate (rank_visitors = rank(desc(visitors), ties.method = "first")) %>%
+      do(head(., n = 10)) %>%
+      ungroup (year)
+
+   visits_max <- visits %>%
+      filter(year == max(year)) %>%
+      mutate(year = as.numeric(year) + 0.25)
+
+  visits_min <- visits %>%
+      filter(year == min(year)) %>%
+      mutate(year = as.numeric(year) - 0.25)
+
+
+
+## ------------------------------------------------------------------------
+
+   library (ggrepel)
+
+   ggplot(data = visits, mapping = aes(year, y = rank_visitors, group = unit_code, color = unit_code)) +
+     geom_line(size = 1.7, alpha = 0.25, data = visits) +
+     geom_line(size = 2.5, data = visits) +
+     geom_point(size = 4, alpha = 0.25, data = visits) +
+     geom_point(size = 4, data = visits) +
+     geom_point(size = 1.75, color = "white", data = visits) +
+     geom_text_repel(
+        data = visits_max, 
+        aes(label = unit_code), 
+        hjust = "inward", size = 3
+        ) +
+     geom_text_repel(
+        data = visits_min,
+        aes(label = unit_code),
+        hjust = "inward", size = 3
+        ) +
+     #scales
+         scale_x_continuous(
+            breaks = seq (1995, 2015, 10),
+            expand = c(.1, .1)
+            ) +
+         scale_y_reverse (breaks = c(1,5,10)) +
+         scale_color_manual(values = c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99")) +
+     labs (
+       title = "United States National Park Visitors (1995 - 2015)",
+       subtitle = "     - Great Smoky Mountain and Grand Canyon National Parks continue as #1 and #2 most visited.\n     - Rocky Mountain National Park has grown from #7 to #3 while Olympic National Park has slipped from #4 to #7.",
+       caption = "Visualization: Joel Soroos @soroosj  |  Data: Wikipedia via R4DS Tidy Tuesday",
+       y = "# of visitors rank"
+         ) +
+      theme(
+         plot.title = element_text(hjust = 0, vjust = 0, size = 17, face = "bold", margin = margin (0,0,3,0)),
+         plot.subtitle = element_text(hjust = 0, vjust = 0, size = 9, face = "bold", margin = margin (0,0,20,0)),
+         plot.caption = element_text (hjust = 0, size = 8, face = "plain", margin = margin (20,0,0,0), color="#6D7C83"),
+         legend.position = "none",
+         axis.title.y = element_text (size = 10, hjust = 1),
+         axis.title.x = element_blank ()
+         ) +
+      ggsave("parks.png", width = 22, height = 13, units = "cm")
+

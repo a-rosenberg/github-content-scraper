@@ -1,0 +1,69 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ----source, warning=FALSE-----------------------------------------------
+library(readr)
+library(lubridate)
+library(tidyverse)
+
+df <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-20/nuclear_explosions.csv")
+
+country_file <- "https://raw.githubusercontent.com/google/dspl/master/samples/google/canonical/countries.csv"
+
+country_codes <- read_csv(country_file)
+
+
+
+## ----cleaning------------------------------------------------------------
+
+#Removing the country name variable. The name of lat and log are changed so that the final dataframe has coordinates for the explosions and the countries. 
+country_codes <- select(country_codes, country, source.lat = latitude, source.long = longitude)
+
+#Get data for plotting world map. Then rename countries so that they match the country_codes data frame, and ensure the former USSR countires have the same name. 
+
+
+world.data <- left_join(map_data("world"), data_frame(region = c("USA", "Russia", "UK", "France", "India", "Pakistan", "China", "Georgia", "Ukraine", "Moldova", "Belarus", "Armenia", "Azerbaijan", "Kazakhstan", "Uzbekistan", "Turkmenistan", "Kyrgyzstan", "Tajikistan"), country = c("US", "RU", "GB", "FR", "IN", "PK", "CN", "RU", "RU", "RU", "RU", "RU" ,"RU" ,"RU" ,"RU" ,"RU" ,"RU" ,"RU")))
+
+#Recode the TidyTuesday dataset to ensure the names match the country codes and then merge the two dataframes
+
+
+df2 <- df %>% mutate(country = recode(country, "USA" = "US", "USSR" = "RU", "UK" = "GB", "FRANCE" = "FR", "INDIA" = "IN", "PAKIST" = "PK", "CHINA" = "CN")) %>% left_join(country_codes, by = "country")
+
+
+
+## ----plotting------------------------------------------------------------
+
+#labels 
+text.df <- df2 %>% select(source.long, source.lat, country) %>% unique 
+text.df$label <- c("USA", "USSR", "UK", "France", "China", "India", "Pakistan")
+
+
+#the actual plot.
+df2 %>% ggplot() + geom_polygon(data = world.data, aes(x=long, y =lat, group= group), fill ="lightgray") + 
+  
+  geom_polygon(data = world.data, aes(x=long, y =lat, group = group, fill = country), alpha = 0.8) +
+    
+  theme_void() + 
+  
+  theme(panel.background = element_rect(fill = "grey8"), plot.background = element_rect(fill = "grey8"), legend.position = "none", plot.title = element_text(color = "lightgray", hjust = 0.5), plot.caption = element_text(color = "lightgray", size = 8), plot.subtitle = element_text(color = "lightgray", size = 9, hjust=0.5)) + 
+  
+  geom_point(aes(x=source.long, y = source.lat), color = "white", size = 5.3) +
+  
+  geom_point(aes(x=source.long, y = source.lat, color = country), size = 4) +
+  
+  geom_point(aes(x = longitude, y = latitude, color = country, size = (yield_upper + yield_lower)/2)) + 
+  
+  geom_curve(aes(x= source.long, y = source.lat, xend = longitude, yend = latitude, color = country, size = (yield_upper + yield_lower)/2, alpha = 0.3)) +
+  
+  scale_fill_manual(values = c("darkred", "mediumaquamarine", "navy", "orange", "springgreen3", "brown4", "slateblue", "lightgray")) +
+  
+  scale_color_manual(values = c("darkred", "mediumaquamarine", "navy", "orange", "springgreen3", "brown1", "slateblue", "lightgray")) +
+  
+  geom_label(data = text.df, aes(x=source.long, y=source.lat, label = label, fill = country), color = "white", hjust =0, nudge_x=4, size =3) +
+  
+  labs(title = "Nuclear Explosions (1945 - 1998)", subtitle = "Source country and target location of nuclear explosions. \nLine thickness indicates size of the bomb.", caption = "Data: SIPRI. Plot: Ethan Tenison")
+  
+
+    
+

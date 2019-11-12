@@ -1,0 +1,468 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ------------------------------------------------------------------------
+pacman::p_load(dplyr, purrr, tidyr, ggplot2, ggtext, hrbrthemes, extrafont, 
+               ggalt, ggforce, scales, ggrepel, forcats, ggupset,
+               ggthemes, dutchmasters, ochRe, cowplot)
+
+loadfonts(quiet = TRUE, device = "pdf")
+
+
+## ------------------------------------------------------------------------
+emperors_raw <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-13/emperors.csv")
+
+glimpse(emperors_raw)
+
+
+## ------------------------------------------------------------------------
+emperors_raw %>% count(rise, sort = TRUE)
+
+
+## ------------------------------------------------------------------------
+emperors_raw %>% count(cause, sort = TRUE)
+
+
+## ------------------------------------------------------------------------
+  # mutate(dynasty = replace(dynasty, dynasty == "Julio-Claudian", 
+  #                          "Julio-Claudian (27 B.C. - 68 A.D.)"),
+  #        dynasty = replace(dynasty, dynasty == "Flavian", 
+  #                          "Flavian (68 - 96 A.D.)"),
+  #        dynasty = replace(dynasty, dynasty == "Nerva-Antonine", 
+  #                          "Nerva-Antonine (96 - 192 A.D.)"),
+  #        dynasty = replace(dynasty, dynasty == "Severan", 
+  #                          "Severan (193 - 235 A.D.)"),
+  #        dynasty = replace(dynasty, dynasty == "Julio-Claudian", 
+  #                          "Julio-Claudian (27 B.C. - 68 A.D.)"))
+
+
+## ------------------------------------------------------------------------
+emperors_clean <- emperors_raw %>% 
+  select(-verif_who) %>% 
+  mutate(rise = fct_relevel(rise, 
+                            "Seized Power", "Appointment by Army",
+                            "Appointment by Praetorian Guard",
+                            "Purchase", "Election", 
+                            "Appointment by Senate", 
+                            "Appointment by Emperor",
+                            "Birthright"),
+         cause = fct_relevel(cause, 
+                             "Assassination", "Unknown", "Execution", 
+                             "Died in Battle", "Captivity", "Suicide", "Natural Causes"),
+         dynasty = case_when(
+           name %in% c("Trajan Decius", "Hostilian", 
+                       "Trebonianus Gallus", "Aemilian") ~ "Decian",
+           name %in% c("Valerian", "Gallienus") ~ "Valerian",
+           name %in% c("Cladius Gothicus", "Quintillus", 
+                       "Aurelian") ~ "Gordian cont.",
+           name %in% c("Tacitus", "Florianus", "Probus") ~ "Tacitus",
+           name %in% c("Carus", "Numerian", "Carinus") ~ "Caran",
+           TRUE ~ dynasty)) %>% 
+  mutate(dynasty = case_when(
+    dynasty == "Julio-Claudian" ~ "Julio-Claudian (27 B.C. - 68 A.D.)",
+    dynasty == "Flavian" ~ "Flavian (68 - 96 A.D.)",
+    dynasty == "Nerva-Antonine" ~ "Nerva-Antonine (96 - 192 A.D.)",
+    dynasty == "Severan" ~ "Severan (193 - 235 A.D.)",
+    dynasty == "Gordian" ~ "Gordian (238 - 249 A.D.)",
+    dynasty == "Gordian cont." ~ "Gordian cont. (268 - 275 A.D.)",
+    dynasty == "Decian" ~ "Decian (249 - 253 A.D.)", 
+    dynasty == "Valerian" ~ "Valerian (253 - 268 A.D.)",
+    dynasty == "Tacitus" ~ "Tacitus (275 - 282 A.D.)", 
+    dynasty == "Caran" ~ "Caran (282 - 285 A.D.)",
+    dynasty == "Constantinian" ~ "Diocletian (285 - 305 A.D.)"
+  )) %>% 
+  mutate(dynasty = as_factor(dynasty))
+
+
+## ---- fig.width=15-------------------------------------------------------
+emperors_rise <- emperors_clean %>% 
+  filter(index <= 49) %>% 
+  ggplot(aes(x = index, y = rise, group = 1)) +
+  geom_path(color = "#657b83") +
+  geom_point(aes(fill = dynasty), color = "grey",
+             size = 5.5, shape = 21, stroke = 2) + 
+  scale_x_continuous(expand = c(0.025, 0),
+                   breaks = c(1, 49),
+                   labels = c("26 B.C.", "305 A.D.")) +
+  scale_fill_dutchmasters(palette = "pearl_earring") +
+  guides(fill = guide_legend(title = "Dynasty", ncol = 3, 
+                             direction = "horizontal", 
+                             title.position = "top")) +
+  labs(title = "The <b style='color: black'>Rise</b> & <b style='color: black'>Fall</b> of Roman Emperors <br>From Augustus (26 B.C. - 14 A.D.) to Diocletian (285 A.D. - 305 A.D.) <br>Transitions of Power Ordered by <b style='color:#228B22'>'Peaceful'</b> to <b style='color:#800000'>'Violent'</b> *",
+       subtitle = "<b style='color: black'>Rise</b>",
+       x = "26 B.C. - 395 A.D.", y = NULL,
+       caption = glue::glue("
+                            * Subjective and with many caveats
+                            Data: Wikipedia
+                            By @R_by_Ryo")) +
+  theme_solarized() +
+  theme(plot.title = element_markdown(size = 25, family = "Quattrocento"),
+        plot.subtitle = element_markdown(size = 22, family = "Quattrocento"),
+        plot.caption = element_text(size = 14),
+        text = element_markdown(family = "Quattrocento", face = "bold"), 
+        axis.title.x = element_text(size = 16),
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(size = 1.5),
+        panel.grid.minor.x = element_blank(),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 18, family = "Quattrocento", face = "bold"),
+        legend.text = element_text(size = 16, family = "Quattrocento", face = "bold"),
+        legend.key = element_rect(fill = "#fdf6e3"),
+        legend.position = "bottom")
+
+emperors_rise
+
+
+## ---- fig.width=15-------------------------------------------------------
+windowsFonts(quattro = windowsFont("Quattrocento"))
+
+emperors_riset <- emperors_clean %>% 
+  filter(index <= 49) %>% 
+  ggplot(aes(x = index, y = rise, group = 1)) +
+  geom_path(color = "#657b83") +
+  geom_point(aes(fill = dynasty), color = "grey",
+             size = 5.5, shape = 21, stroke = 2) + 
+  scale_x_discrete(expand = c(0.025, 0)) +
+  scale_fill_dutchmasters(palette = "pearl_earring") +
+  labs(title = "<b style='color: black'>Rise</b> of Roman Emperors",
+       subtitle = "From Augustus (26 B.C. - 14 A.D.) to Diocletian (285 A.D. - 305 A.D.)  
+       Transitions of Power Ordered by <b style='color:#228B22'>'Peaceful'</b> to <b style='color:#800000'>'Violent'</b> *",
+       x = NULL, y = NULL) +
+  theme_solarized() +
+  theme(plot.title = element_markdown(size = 25, family = "quattro"),
+        plot.subtitle = element_markdown(size = 20, family = "quattro"),
+        text = element_markdown(family = "quattro", face = "bold"), 
+        axis.title.x = element_text(size = 16),
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(size = 1.5),
+        axis.text.y = element_text(size = 16),
+        legend.position = "none",
+        plot.margin = unit(c(9, 9, 9, 9), "pt"))
+
+emperors_riset
+
+
+## ---- fig.width=18-------------------------------------------------------
+windowsFonts(quattro = windowsFont("Quattrocento"))
+
+emperors_riset2 <- emperors_clean %>% 
+  filter(index <= 49) %>% 
+  ggplot(aes(x = index, y = rise, group = 1)) +
+  geom_path(color = "#657b83") +
+  geom_point(aes(fill = dynasty), color = "grey",
+             size = 5.5, shape = 21, stroke = 2) + 
+  scale_x_continuous(expand = c(0.025, 0),
+                   breaks = c(1, 49),
+                   labels = c("26 B.C.", "305 A.D.")) +
+  scale_fill_dutchmasters(palette = "pearl_earring") +
+  labs(title = "The <b style='color: black'>Rise</b> & <b style='color: black'>Fall</b> of Roman Emperors <br>From Augustus (26 B.C. - 14 A.D.) to Diocletian (285 A.D. - 305 A.D.) <br>Transitions of Power Ordered by <b style='color:#228B22'>'Peaceful'</b> to <b style='color:#800000'>'Violent'</b> *",
+       subtitle = "<b style='color: black'>Rise</b>",
+       x = NULL, y = NULL) +
+  theme_solarized() +
+  theme(plot.title = element_markdown(size = 22, family = "quattro"),
+        plot.subtitle = element_markdown(size = 22, family = "quattro"),
+        plot.caption = element_text(size = 14),
+        text = element_markdown(family = "quattro", face = "bold"), 
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(size = 1.5),
+        panel.grid.minor.x = element_blank(),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 18, family = "quattro", face = "bold"),
+        legend.text = element_text(size = 16, family = "quattro", face = "bold"),
+        legend.key = element_rect(fill = "#fdf6e3"),
+        legend.position = "none",
+        plot.margin = unit(c(20, 20, 20, 20), "pt"))
+
+emperors_riset2
+
+
+## ---- fig.width=15-------------------------------------------------------
+emperors_fall <- emperors_clean %>% 
+  filter(index <= 49) %>% 
+  ggplot(aes(x = index, y = cause, group = 1)) +
+  geom_path(color = "#657b83") +
+  geom_point(aes(fill = dynasty), color = "grey",
+             size = 5.5, shape = 21, stroke = 2) + 
+  scale_x_continuous(expand = c(0.025, 0),
+                   breaks = c(1, 49),
+                   labels = c("26 B.C.", "305 A.D.")) +
+  scale_fill_dutchmasters(palette = "pearl_earring") +
+  guides(fill = guide_legend(title = "Dynasty", ncol = 3, 
+                             direction = "horizontal", 
+                             title.position = "top")) +
+  labs(title = "<b style='color: black'>Fall</b> of Roman Emperors",
+       subtitle = "From Augustus (26 B.C. - 14 A.D.) to Diocletian (379 A.D. - 395 A.D.)  
+       Transitions of Power Ordered by <b style='color:#228B22'>'Peaceful'</b> to <b style='color:#800000'>'Violent'</b> *",
+       x = "Time: 26 B.C. - 305 A.D.", y = NULL,
+       caption = glue::glue("* Subjective and with many caveats")) +
+  theme_solarized() +
+  theme(plot.title = element_markdown(size = 25, family = "Quattrocento"),
+        plot.subtitle = element_markdown(size = 20, family = "Quattrocento"),
+        plot.caption = element_text(size = 14),
+        text = element_markdown(family = "Quattrocento", face = "bold"), 
+        axis.title.x = element_text(size = 16),
+        axis.text.x = element_text(size = 16),
+        #axis.ticks = element_blank(),
+        panel.grid = element_line(size = 1.5),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 18, family = "Quattrocento", face = "bold"),
+        legend.text = element_text(size = 16, family = "Quattrocento", face = "bold"),
+        legend.key = element_rect(fill = "#fdf6e3"),
+        legend.position = "bottom",
+        legend.justification = c(0, 0))
+
+emperors_fall
+
+
+## ---- fig.width=15-------------------------------------------------------
+windowsFonts(quattro = windowsFont("Quattrocento"))
+
+emperors_fallt <- emperors_clean %>% 
+  filter(index <= 49) %>% 
+  ggplot(aes(x = index, y = cause, group = 1)) +
+  geom_path(color = "#657b83") +
+  geom_point(aes(fill = dynasty), color = "grey",
+             size = 5.5, shape = 21, stroke = 2) + 
+  scale_x_discrete(expand = c(0.025, 0)) +
+  scale_fill_dutchmasters(palette = "pearl_earring") +
+  guides(fill = guide_legend(title = "Dynasty", ncol = 3, 
+                             direction = "horizontal", 
+                             title.position = "top")) +
+  labs(title = "<b style='color: black'>Fall</b> of Roman Emperors",
+       x = "26 B.C. - 305 A.D.", y = NULL,
+       caption = glue::glue("
+                            * Subjective and with many caveats
+                            Data: Wikipedia
+                            By @R_by_Ryo")) +
+  theme_solarized() +
+  theme(plot.title = element_markdown(size = 25, family = "quattro"),
+        plot.caption = element_text(size = 14),
+        text = element_markdown(family = "quattro", face = "bold"), 
+        axis.title.x = element_text(size = 16),
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(size = 1.5),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 18, family = "quattro", 
+                                    face = "bold"),
+        legend.text = element_text(size = 16, family = "quattro", 
+                                   face = "bold"),
+        legend.key = element_rect(fill = "#fdf6e3"),
+        legend.position = "bottom",
+        legend.justification = c(0, 0))
+
+emperors_fallt
+
+
+## ---- fig.width=18-------------------------------------------------------
+windowsFonts(quattro = windowsFont("Quattrocento"))
+
+emperors_fallt2 <- emperors_clean %>% 
+  filter(index <= 49) %>% 
+  ggplot(aes(x = index, y = cause, group = 1)) +
+  geom_path(color = "#657b83") +
+  geom_point(aes(fill = dynasty), color = "grey",
+             size = 5.5, shape = 21, stroke = 2) + 
+  scale_x_continuous(expand = c(0.025, 0),
+                   breaks = c(1, 49),
+                   labels = c("26 B.C.", "305 A.D.")) +
+  scale_fill_dutchmasters(palette = "pearl_earring") +
+  guides(fill = guide_legend(title = "Dynasty", ncol = 3, 
+                             direction = "horizontal", 
+                             title.position = "top")) +
+  labs(title = NULL,
+       subtitle = "<b style='color: black'>Fall</b>",
+       x = "The Principate Era", y = NULL,
+       caption = glue::glue("
+                            * Subjective and with many caveats
+                            Data: Wikipedia
+                            By @R_by_Ryo")) +
+  theme_solarized() +
+  theme(plot.subtitle = element_markdown(size = 22, family = "quattro"),
+        plot.caption = element_text(size = 14),
+        text = element_markdown(family = "quattro", face = "bold"), 
+        axis.title.x = element_text(size = 16),
+        axis.text.x = element_text(size = 16),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(size = 1.5),
+        panel.grid.minor.x = element_blank(),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 18, family = "quattro", face = "bold"),
+        legend.text = element_text(size = 16, family = "quattro", face = "bold"),
+        legend.key = element_rect(fill = "#fdf6e3"),
+        legend.position = "bottom",
+        legend.justification = c(0, 0),
+        plot.margin = unit(c(20, 20, 20, 20), "pt"))
+
+emperors_fallt2
+
+
+## ---- fig.height=20, fig.width=15----------------------------------------
+library(gtable)
+library(grid)
+
+png("emperor_RiseFall_plot.png", 
+    width = 2000, height = 1500, res = 144, bg = "white")
+
+one <- ggplotGrob(emperors_riset)
+two <- ggplotGrob(emperors_fallt)
+
+gg <- rbind(one, two, size = "last")
+gg
+
+gg$widths <- unit.pmax(one$widths, two$widths)
+
+#gg$layout[grepl("guide", gg$layout$name), c("t", "b")] <- c(1, nrow(gg))
+
+grid.newpage()
+grid.draw(gg)
+
+dev.off()
+
+
+## ---- fig.height=20, fig.width=18----------------------------------------
+library(gtable)
+library(grid)
+
+png("emperor_RiseFall_plot2.png", 
+    width = 2000, height = 1800, res = 144, bg = "white")
+
+one <- ggplotGrob(emperors_riset2)
+two <- ggplotGrob(emperors_fallt2)
+
+gg <- rbind(one, two, size = "last")
+gg
+
+gg$widths <- unit.pmax(one$widths, two$widths)
+
+grid.newpage()
+grid.draw(gg)
+
+dev.off()
+
+
+## ---- fig.height=20, fig.width=15, warning=FALSE, message=FALSE----------
+asdf <- plot_grid(emperors_riset, emperors_fallt, 
+          align = "v", #axis = "l",
+          ncol = 1)
+
+set_null_device("pdf")
+
+ggdraw(asdf)
+
+
+## ------------------------------------------------------------------------
+ggsave(filename = here::here("roman_emperors_plot.png"),
+       height = 20, width = 15)
+
+
+## ------------------------------------------------------------------------
+library(gridExtra)
+
+png("test_plot.png", 
+    width = 2000, height = 1500, res = 144, bg = "white")
+
+grid.arrange(
+  emperors_riset, 
+  emperors_fallt, widths = c(1)
+  )
+dev.off()
+
+
+## ------------------------------------------------------------------------
+asdf
+
+Cairo::Cairo(2000, 1500, "test.png", bg = "white")
+last_plot()
+dev.off()
+
+
+## ---- fig.height=20, fig.width=15----------------------------------------
+library(gtable)
+library(grid)
+
+one <- ggplotGrob(emperors_riset)
+two <- ggplotGrob(emperors_fallt)
+
+panel_id <- one$layout[one$layout$name == "panel", c("t", "l")]
+
+g <- gtable_add_rows(one, unit(1, "in"), 0)
+g <- gtable_add_grob(g, two,
+                     t = 1, l = panel_id$l)
+
+grid.newpage()
+grid.draw(g)
+
+
+## ---- fig.height=20, fig.width=15----------------------------------------
+ggpubr::ggarrange(emperors_riset, 
+                  emperors_fallt, 
+                  ncol = 1, align = "v")
+
+
+## ------------------------------------------------------------------------
+library(gridExtra)
+justify <- function(x, hjust="center", vjust="center", draw=TRUE){
+  w <- sum(x$widths)
+  h <- sum(x$heights)
+  xj <- switch(hjust,
+               center = 0.5,
+               left = 0.5*w,
+               right=unit(1,"npc") - 0.5*w)
+  yj <- switch(vjust,
+               center = 0.5,
+               bottom = 0.5*h,
+               top=unit(1,"npc") - 0.5*h)
+  x$vp <- grid::viewport(x=xj, y=yj)
+  if(draw) grid::grid.draw(x)
+  return(x)
+}
+
+grid::grid.newpage()
+justify(emperors_riset,
+        emperors_fallt, "left", "top")
+
+
+## ---- fig.height=5, fig.width=8------------------------------------------
+emperors_clean %>% 
+  mutate_at(c("rise", "cause"), as.character) %>% 
+  mutate(rise = paste0("<b style='color: black'>Rise</b>: ", rise),
+         cause = paste0("<b style='color: black'>Fall</b>: ", cause)) %>% 
+  mutate(risefall = map2(rise, cause, ~c(.x, .y))) %>% 
+  ggplot(aes(x = risefall)) +
+  geom_bar(fill = "#8B0000") + 
+  scale_x_upset(n_intersections = 10,
+                expand = c(0.01, 0.01)) +
+  scale_y_continuous(expand = c(0, 0),
+                     labels = seq(0, 15, by = 2),
+                     breaks = seq(0, 15, by = 2)) +
+  labs(title = "The <b style='color: black'>Rise</b> & <b style='color: black'>Fall</b> of Roman Emperors",
+       subtitle = "Many Emperors With A 'Rightful' Claim Met An <br> Untimely End By <b style='color: #8B0000'>Assassination</b> Or <b style='color: #8B0000'>Execution</b>.",
+       caption = "<b style='color: black'>Source</b>: Wikipedia <br><b style='color: black'>By</b>: @R_by_Ryo",
+       x = NULL, y = "Number of Occurence") +
+  theme_combmatrix(
+    text = element_text(family = "Quattrocento", color = "#657b83"),
+    plot.title = element_markdown(family = "Quattrocento"),
+    plot.subtitle = element_markdown(family = "Quattrocento"),
+    plot.caption = element_markdown(family = "Quattrocento"),
+    axis.title.y = element_blank(),
+    axis.text.y = element_markdown(family = "Quattrocento", color = "#657b83", size = 10),
+    plot.background = element_rect(fill = "#fdf6e3"),
+    panel.background = element_rect(fill = "#fdf6e3"),
+    combmatrix.panel.striped_background.color.one = "#d3d3d3",
+    combmatrix.panel.point.color.fill = "#8B0000",
+    combmatrix.panel.line.color = "#8B0000",   ## added this option in myself in my own version of the package...
+    panel.grid.major.x = element_blank(),
+    combmatrix.label.extra_spacing = 5,
+    axis.ticks = element_blank())
+
+
+## ------------------------------------------------------------------------
+ggsave(filename = here::here("emperors_upsetplot.png"),
+       height = 5, width = 8)
+

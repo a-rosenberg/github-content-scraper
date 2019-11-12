@@ -1,0 +1,71 @@
+## ------------------------------------------------------------------------
+library(tidyverse)
+
+
+## ------------------------------------------------------------------------
+bike_traffic <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-04-02/bike_traffic.csv")
+
+
+## ------------------------------------------------------------------------
+bike_traffic_clean<-bike_traffic%>%
+  select(-c(ped_count,crossing,direction))%>%
+  extract(date, into = c("Mo","Day","Yr"),regex="([0-9]{2})/([0-9]{2})/([0-9]{4})")%>%
+  filter(!Yr %in% c("2013","2019"))%>%
+  group_by(Mo,Day,Yr)%>%
+  summarize(count=sum(bike_count,na.rm=TRUE))%>%
+  group_by(Mo,Day)%>%
+  summarize(avg_bike=mean(count))
+
+
+## ------------------------------------------------------------------------
+Winter<-bike_traffic_clean%>%
+  filter(Mo %in% c("12","01","02"))
+
+Spring<-bike_traffic_clean%>%
+ filter(Mo %in% c("03","04","05"))
+
+Summer<-bike_traffic_clean%>%
+  filter(Mo %in% c("06","07","08"))
+
+Fall<-bike_traffic_clean%>%
+  filter(Mo %in% c("09","10","11"))
+
+
+## ------------------------------------------------------------------------
+ggplot(mapping=aes(x=avg_bike))+
+         geom_histogram(data=Winter, color="purple",fill="purple",alpha=0.2,binwidth=250,boundary=0.4,na.rm=TRUE)+
+         geom_histogram(data=Spring, color="green",fill="green",alpha=0.2,binwidth=250,boundary=0.4,na.rm=TRUE)+
+         geom_histogram(data=Summer, color="blue",fill="blue",alpha=0.2,binwidth=250,boundary=0.4,na.rm=TRUE)+
+         geom_histogram(data=Fall, color="red",fill="red",alpha=0.2,binwidth=250,boundary=0.4,na.rm=TRUE)+
+  xlim(500,6000)+
+         labs(title="Number of Bike Riders in Seattle per Day", x="Bike Riders per Day", y="Number of Days")+
+         theme_bw()
+
+
+## ------------------------------------------------------------------------
+Winter2<-Winter%>%
+  mutate(Season="Winter")
+
+Spring2<-Spring%>%
+  mutate(Season="Spring")
+
+Summer2<-Summer%>%
+  mutate(Season="Summer")
+
+Fall2<-Fall%>%
+  mutate(Season="Fall")
+
+Seasons_data<-Winter2%>%
+  full_join(Spring2)%>%
+  full_join(Summer2)%>%
+  full_join(Fall2)
+
+
+## ------------------------------------------------------------------------
+ggplot(Seasons_data%>%group_by(Season),mapping=aes(x=avg_bike,color=Season,fill=Season))+
+  geom_histogram(alpha=0.3,binwidth=250,boundary=0.4,na.rm=TRUE)+
+        facet_wrap(~Season)+
+         xlim(0,6000)+
+         labs(title="Number of Bike Riders in Seattle per Day", x="Bike Riders per Day", y="Number of Days")+
+         theme_bw()
+

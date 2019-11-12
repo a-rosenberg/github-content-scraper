@@ -6,25 +6,32 @@ knitr::opts_chunk$set(
   fig.width=8, fig.height=5
 )
 
+
 ## ------------------------------------------------------------------------
 scales::show_col(vapoRwave:::floralShoppe_palette)
+
 
 ## ------------------------------------------------------------------------
 scales::show_col(vapoRwave:::newRetro_palette)
 
+
 ## ------------------------------------------------------------------------
 scales::show_col(vapoRwave:::jwz_palette)
+
 
 ## ------------------------------------------------------------------------
 scales::show_col(vapoRwave:::hotlineBling_palette)
 
+
 ## ------------------------------------------------------------------------
 scales::show_col(vapoRwave:::hyperBubble_palette)
+
 
 ## ------------------------------------------------------------------------
 library(tidyverse)
 library(vapoRwave)
 library(extrafont)
+
 
 ## ----floralShoppe_01-----------------------------------------------------
 # use palette_03
@@ -35,6 +42,7 @@ ggplot(mpg, aes(displ)) +
                    size=.1) +  # change binwidth
         labs(title="Floral Shoppe", 
         subtitle="Engine Displacement across Vehicle Classes") + floral_shoppe() + scale_fill_floralShoppe()
+
 
 
 ## ----newRetro_01---------------------------------------------------------
@@ -54,6 +62,7 @@ ggplot(midwest, aes(x=area, y=poptotal)) +
         scale_colour_newRetro()
 
 
+
 ## ----jwz_01--------------------------------------------------------------
 ggplot(mpg, aes(class, cty)) +
         geom_boxplot(aes(fill=factor(cyl))) + 
@@ -66,8 +75,10 @@ ggplot(mpg, aes(class, cty)) +
         jwz() +
         scale_fill_jwz()
 
+
 ## ---- eval=FALSE---------------------------------------------------------
-#  extrafont::fonts()
+## extrafont::fonts()
+
 
 ## ----newRetro_02---------------------------------------------------------
 var <- mpg$class  # the categorical data 
@@ -92,6 +103,7 @@ ggplot(df, aes(x = x, y = y, fill = category)) +
     labs(title="Waffle Chart", subtitle="'Class' of vehicles",
          caption="Source: mpg") + new_retro(font = "SF Alien Encounters Solid", main.text.color = "pink")
 
+
 ## ----jwz_02--------------------------------------------------------------
 library(gapminder)
 ggplot(filter(gapminder, year == 2007), aes(x = gdpPercap, y = lifeExp)) +
@@ -105,6 +117,7 @@ ggplot(filter(gapminder, year == 2007), aes(x = gdpPercap, y = lifeExp)) +
          y = "Age (years)") +
     guides(size = FALSE) +
     jwz(font = "Streamster", main.text.color = "#FFCCFF", sub.text.color = "#CCFFFF", subtitle.size = 16) + scale_fill_hyperBubble()
+
 
 ## ----newRetro_03---------------------------------------------------------
 df <- gapminder %>% 
@@ -124,6 +137,7 @@ ggplot(df, aes(x = year, y = gdpPercap, fill = country)) +
   floral_shoppe(main.text.color = "black", font = "OCR A Extended", legend.position = "bottom") +
   scale_fill_newRetro()
 
+
 ## ----jwz_03--------------------------------------------------------------
 library(forecast)
 
@@ -132,6 +146,7 @@ nottem_small <- window(nottem, start=c(1920, 1), end=c(1925, 12))  # subset a sm
 
 # Plot (capital "B" is the Blade Runner guy)
 ggseasonplot(nottem_small) + labs(title="Seasonal B plot:", subtitle = "Air temperatures at Nottingham Castle") + scale_colour_jwz() + new_retro(font = "Blade Runner Movie Font")
+
 
 ## ----floralShoppe_02-----------------------------------------------------
 library(ggcorrplot)
@@ -144,6 +159,7 @@ ggcorrplot(corr, hc.order = T,
            colors = c('#79ADDC', 'white', '#CC7E85'),
            lab = T) + floral_shoppe()
 
+
 ## ----WVPlots-------------------------------------------------------------
 library(WVPlots) 
 
@@ -154,6 +170,7 @@ PairPlot(iris,
         labs(caption = "Source: https://bit.ly/2N7tudH") + 
                 jwz() + 
                 scale_colour_hotlineBling()
+
 
 ## ----floralShoppe_03-----------------------------------------------------
 ggplot(faithful, aes(x = eruptions, y = waiting)) +

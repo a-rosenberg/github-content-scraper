@@ -1,0 +1,78 @@
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(here)
+library(rworldmap)
+library(ggthemes)
+
+
+## ------------------------------------------------------------------------
+student_ratio <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-07/student_teacher_ratio.csv")
+
+
+
+## ------------------------------------------------------------------------
+
+med_ratios <- student_ratio %>% 
+  filter(!is.na(student_ratio)) %>%      # remove NAs
+  group_by(country_code, indicator) %>%
+  filter(year == max(year)) %>%          # grab the most recent data for each country and education level
+  ungroup() %>%
+  group_by(country_code, country) %>%
+  summarise(median_ratio = median(student_ratio)) 
+
+
+
+## ------------------------------------------------------------------------
+anti_join(med_ratios, map_data("world"), by = c("country" = "region")) %>% View()
+
+
+## ------------------------------------------------------------------------
+med_ratios_fixed <- med_ratios %>%
+  mutate(country = recode(country,
+                                "United States of America" = "USA",
+                                "Viet Nam" = "Vietnam",
+                                "British Virgin Islands" = "Virgin Islands",
+                                "United Republic of Tanzania" = "Tanzania",
+                                "Syrian Arab Republic" = "Syria",
+                                "Russian Federation" = "Russia",
+                                "Democratic People's Republic of Korea" = "North Korea",
+                                "The former Yugoslav Republic of Macedonia" = "Macedonia",
+                                "Republic of Moldova" = "Moldova",
+                                "Republic of Korea" = "South Korea",
+                                "Côte d'Ivoire" = "Ivory Coast",
+                                "Iran (Islamic Republic of)" = "Iran",
+                                "United Kingdom of Great Britain and Northern Ireland" = "UK",
+                                "Micronesia (Federated States of)" = "Micronesia",
+                                "Czechia" = "Czech Republic",
+                                "Cabo Verde" = "Cape Verde",
+                                "Congo" = "Democratic Republic of the Congo",
+                                "Brunei Darussalam" = "Brunei",
+                                "Bolivia (Plurinational State of)" = "Bolivia"))
+                                
+
+
+## ------------------------------------------------------------------------
+my_map_data <- med_ratios_fixed %>%
+  full_join(map_data("world"), by = c("country" = "region")) %>% 
+  filter(!grepl("Antarctica",country)) #don't need Antarctica
+
+
+## ------------------------------------------------------------------------
+ggplot(my_map_data, aes(x = long, y = lat)) +
+     geom_polygon(aes(fill = median_ratio, group = group), color = "black", size = 0.2) +
+     scale_fill_gradient2(low = "blue", high = "red", midpoint = 17.428480) +
+     theme_fivethirtyeight() + 
+     theme(axis.line=element_blank(),
+           axis.text.x=element_blank(),
+           axis.text.y=element_blank(),
+          panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank()) +
+     labs(fill = "ratio",
+          title = "Median Student to Teacher Ratios",
+          caption = str_c(str_wrap("Median student-to-teacher ratio calculated across all education levels using the most recent data for each level. White indicates a median ratio close to the world median. Countries shown in blue have a smaller ratio, while countries shown in red have a larger (less favorable) ratio. Grey indicates missing data.", width = 120),"\nData Source: UNESCO\nVisualization: @AmandaRPlunkett")) 
+  
+
+
+## ------------------------------------------------------------------------
+ggsave("studentTeacherRatios.png", width = 7.4, height = 4.5, dpi = "retina")
+

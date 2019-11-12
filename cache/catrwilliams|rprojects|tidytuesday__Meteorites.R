@@ -1,0 +1,194 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/../Google Drive/Data Analysis/Tidy Tuesday/06-11-19 - Meteorites")
+
+
+## ----library, message=FALSE, results=FALSE-------------------------------
+#function to check if packages are installed, if not then install them, and load all packages
+libraries <- function(packages){
+  for(package in packages){
+    #checks if package is installed
+    if(!require(package, character.only = TRUE)){
+      #If package does not exist, then it will install
+      install.packages(package, dependencies = TRUE)
+      #Loads package
+      library(package, character.only = TRUE)
+    }
+  }
+}
+
+packages <- c("tidyverse","readxl","visdat","modeest","maps","ggthemes","RColorBrewer","SDMTools")
+
+libraries(packages)
+
+theme_set(theme_classic()) #applies classic theme to all charts
+
+
+## ----import, message=FALSE-----------------------------------------------
+df <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-11/meteorites.csv")
+
+
+## ----view----------------------------------------------------------------
+glimpse(df)
+head(df)
+summary(df)
+sapply(df, function(x) n_distinct(x)) %>% sort()
+
+
+## ----missing-------------------------------------------------------------
+#Visualize missing values
+vis_miss(df[,colSums(is.na(df)|df==0) >0], sort_miss=TRUE)
+
+#see count of missing values
+na_values <- function(df){
+  na <- colSums(is.na(df)|df==0) %>% sort(decreasing=TRUE)
+  na[na>0]
+}
+
+na_values(df)
+
+#remove NA coordinates
+df <- df %>% drop_na(geolocation)
+
+#remove missing coordinates
+df <- subset(df, lat!=0 & long!=0)
+
+
+## ----feature, message=FALSE----------------------------------------------
+#import classification table to match class and determine category
+df_class <- read_xlsx("classifications.xlsx", skip=3)
+df_class <- df_class %>% select(category=Category,class=`Letter Designation`,comp=`Composition Type`)
+
+#remove rows with NA in class
+df_class <- df_class %>% drop_na(class)
+
+#set category to the correct values and clean data to make the class column optimal for matching
+df_class <- df_class %>% 
+  mutate(category = case_when((row_number() <= which(df_class[,2] == "R")) ~ "Chondrites",
+                             (row_number() >= which(df_class[,2] == "HOW") & 
+                                row_number() <= which(df_class[,2] == "WIN")) ~ "Achondrites",
+                             (row_number() >= which(df_class[,2] == "H") & 
+                                row_number() <= which(df_class[,2] == "D")) ~ "Irons (structural)",
+                             (row_number() >= which(df_class[,2] == "IAB") & 
+                                row_number() <= which(df_class[,2] == "Anom")) ~ "Irons (chemical)",
+                             (row_number() >= which(df_class[,2] == "PAL")) ~ "Stony Irons",
+                              TRUE ~ category),
+        comp = str_replace(comp,"([:graph:]+\\s+[:graph:]+)\\s.*",""),
+        class = str_split(class, ",\\s|.\\s|-")) %>% unnest(class)
+
+#replace blank values with NAs
+df_class$comp[df_class$comp == ""]<-NA
+
+df_class <- df_class %>% mutate(comp = str_split(comp, "\\s\\(")) %>% unnest(comp)
+df_class <- df_class %>% mutate(comp = str_replace(comp, "\\*|\\)", ""),
+                                comp = str_extract(comp, ".*[^s$]"))
+
+#combine the comp and class column since the data uses both variations as its classification
+df_class <- df_class %>% gather(column, class, comp:class) %>% select(-column) %>% distinct() %>% drop_na()
+
+#make sure the original df has clean class columns for matching
+df <- df %>% mutate(class = str_replace_all(class, "[:punct:]+|~+", " "))
+
+#function to find if any string value in class matches in df_class 
+find_cat <- function(x, patterns, replacements=patterns, fill=NA, ...){
+  stopifnot(length(patterns) == length(replacements))
+
+  ans = rep_len(as.character(fill), length(x))    
+  empty = seq_along(x)
+
+  for(i in seq_along(patterns)) {
+      greps = grepl(patterns[[i]], x[empty], ...)
+      ans[empty[greps]] = replacements[[i]]  
+      empty = empty[!greps]
+  }
+  return(ans)
+}
+
+df$category <- find_cat(df$class, df_class$class, df_class$category, NA, ignore.case = TRUE)
+
+#view the class values that still need to be worked on
+df[!df$class %in% df_class$class & df$category %in% NA,] %>% select(class,category) %>% distinct()
+
+#classify the remaining classes
+#according to https://en.wikipedia.org/wiki/Ordinary_chondrite OC is a Chondrite
+df <- df %>% mutate(category = case_when(str_detect(class, "^C|LL|L|E|OC") ~ "Chondrites",
+                                        TRUE ~ category),
+                    category = replace_na(category, mfv(category, na.rm=T))) #the remaining values cannot be classified. Using mode to give them a value
+
+
+## ----data----------------------------------------------------------------
+#finally change the data types back to factors and remove duplicates that were made above
+df <- df %>% mutate_if(is.character,as.factor)
+
+
+## ----world, out.width="100%"---------------------------------------------
+world <- map_data("world")
+
+#practice using geom_polygon
+ggplot(world, aes(x=long, y=lat, group=group))+
+  geom_polygon(fill="#f2e6d9",color = "white")+
+  geom_point(df, mapping=aes(group=category, color=category), alpha=0.5, size=0.5)+
+  coord_map(xlim=c(-180,180))+
+  theme_map()+
+  scale_color_brewer(palette="Set1")+
+  labs(title="Meteorite Categories Across The World", color="Category")+
+  guides(color=guide_legend(override.aes=list(size=4)))+
+  theme(plot.background=element_rect(fill="#ccefff"),
+        legend.position=c(0, 0.09),
+        legend.background=element_rect(fill="#ccefff"),
+        legend.key=element_rect(fill="#ccefff"),
+        plot.title=element_text(size=14, hjust=0.5),
+        legend.title.align=0.5,
+        legend.title=element_text(face="bold"))
+
+
+## ----usa data, message=FALSE, warning=FALSE------------------------------
+state <- map_data("state")
+usa <- map_data("usa")
+
+#filter out points that do not belong in the usa
+x=usa$long
+y=usa$lat
+long=df$long
+lat=df$lat
+
+#define the points and polygon
+points <- cbind(long,lat)
+polypoints <- cbind(x,y)
+
+#plot the polygon and all points to be checked
+plot(rbind(polypoints,points))
+polygon(polypoints,col="red")
+
+#check which points fall within the polygon
+out <- pnt.in.poly(points,polypoints)
+summary(out)
+
+#identify points not in the polygon with an x
+plot(rbind(polypoints,points))
+polygon(polypoints,col='#99999990')
+points(out[which(out$pip==0),1:2],pch=4,col="red")
+
+#filter df for only the relevant points
+df_usa <- bind_cols(df,out) %>% select(-long1,-lat1) %>% filter(pip==1)
+
+
+## ----usa, message=FALSE, warning=FALSE, out.width="100%"-----------------
+##practice using geom_map
+ggplot() +
+  geom_map(data=state, aes(x=long, y=lat, group=group, map_id=region), fill="#f8f2ec",color="grey", map=state)+
+  geom_map(data=usa, map=usa, aes(long, lat, map_id=region), color="black", fill=NA, size=0.5)+
+  geom_point(df_usa, mapping=aes(x=long, y=lat, group=category, color=category), alpha=0.8, size=0.9)+
+  coord_map("polyconic", xlim=c(-124.7, -67.1), ylim = c(25.2, 49.4)) +
+  theme_map()+
+  labs(title="Meteorite Categories Across The United States", color="Category")+
+  scale_color_brewer(palette="Set1")+
+  guides(color=guide_legend(override.aes=list(size=4)))+
+  theme(plot.background=element_rect(fill="#e6f7ff"),
+        legend.position=c(0.83, 0.02),
+        legend.background=element_rect(fill="#e6f7ff"),
+        legend.key=element_rect(fill="#e6f7ff"),
+        plot.title=element_text(size=14, hjust=0.5),
+        legend.title.align=0.5,
+        legend.title=element_text(face="bold"))
+

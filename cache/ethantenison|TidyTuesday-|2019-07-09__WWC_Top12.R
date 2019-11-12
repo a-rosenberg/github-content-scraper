@@ -1,0 +1,86 @@
+## ----source, warning = TRUE, results = FALSE, message = FALSE------------
+library(dplyr)        ## data wrangling
+library(tidyr)        ## data wrangling
+library(purrr)        ## data wrangling and iteration
+library(stringr)      ## data wrangling
+library(rvest)        ## webscraping
+library(polite)       ## webscraping (Github only pkg)
+library(ggplot2)      ## plotting
+library(scales)       ## plotting scales
+library(ggimage)      ## images for flags
+library(ggforce)      ## plotting text labels
+library(cowplot)      ## plotting grid
+library(glue)         ## text
+library(ggrepel)      ## plotting text labels
+library(magick)       ## plotting
+library(ggtextures)   ## soccer ball emoji as geom_col()
+library(extrafont)    ## fonts: Roboto Condensed
+
+    wwc_outcomes <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-07-09/wwc_outcomes.csv")
+    squads <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-07-09/squads.csv")
+    codes <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-07-09/codes.csv")
+
+
+## ----transform, message = F----------------------------------------------
+#separating the top 10 countrie 
+top10_countries <- c("USA", "GER", "NOR", "SWE", "BRA", "CHN", "ENG", "JPN", "FRA", "CAN")
+top10 <- filter(wwc_outcomes, team %in% top10_countries)
+
+#creating an object that contains flag ISO codes to use with geom_flags
+flag_data <- data.frame(
+  image = c("us", "de", "no",  "se", "br", "cn", "gb-eng", "jp", "fr", "ca"),
+  x = c(10, 20,30,40,50,60, 70,80,90,100),
+  y = c(-10, -10,-10,-10,-10,-10,-10,-10,-10,-10)
+)
+
+
+
+## ----plot----------------------------------------------------------------
+   library (ggdark)
+   library(ggimage)
+   library(ggforce)
+
+      #raw plot the win status of top 10 
+      rawplot <- ggplot(data = top10, aes(x =factor(team), fill = factor(win_status))) 
+              + geom_bar()+ coord_flip()+ geom_text(aes(label=..count..), stat = "count", position = position_stack(0.5)) 
+              + scale_x_discrete(limits=c("CAN","FRA", "ENG", "JPN", "CHN", "BRA", "SWE", "NOR", "GER", "USA")) 
+              + dark_theme_minimal() +theme(axis.title.x=element_blank(), line =     axis.text.x=element_blank(),axis.ticks.x=element_blank()) + theme(axis.title.y=element_blank()) 
+              + theme(plot.title = element_text(size=18, hjust = 2)) 
+              + theme(legend.title = element_blank()) 
+              + labs(title = "Women's World Cup: Top 10 Winners from 1991 to 2019\n",caption = "\nSource: data.world  |     Visualization: Ethan Tenison @SassyStatistics") 
+      
+      #Add flags to y-axis
+      axis_image <- axis_canvas(rawplot, axis = 'y') + 
+  draw_image("https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg", 
+             y = 49.5, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/commons/b/ba/Flag_of_Germany.svg", 
+             y = 44, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/commons/d/d9/Flag_of_Norway.svg", 
+             y = 38.5, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/commons/4/4c/Flag_of_Sweden.svg", 
+             y = 33, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/en/0/05/Flag_of_Brazil.svg", 
+             y = 27.5, scale = 3.5) +
+   draw_image("https://upload.wikimedia.org/wikipedia/commons/f/fa/Flag_of_the_People%27s_Republic_of_China.svg", 
+             y = 22, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/commons/1/1b/Flag_of_Japan_%281870%E2%80%931999%29.svg", 
+             y = 16.5, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/en/b/be/Flag_of_England.svg", 
+             y = 11, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/en/c/c3/Flag_of_France.svg", 
+             y = 5.5, scale = 3.5) +
+  draw_image("https://upload.wikimedia.org/wikipedia/commons/1/1f/Flag_of_Canada_%281964%29.svg", 
+             y = 0, scale = 3.5) 
+  
+     
+        top10 <- ggdraw(insert_yaxis_grob(rawplot, 
+  axis_image, position = "left"))
+        
+      
+
+
+## ------------------------------------------------------------------------
+
+ggsave("wwc_top10_teams.png", width = 14, height = 12)
+
+

@@ -1,0 +1,27 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ------------------------------------------------------------------------
+library(tidyverse)
+
+
+## ------------------------------------------------------------------------
+dat <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018-11-20/thanksgiving_meals.csv")
+
+dat %>% 
+  filter(is.na(dat) %>% rowSums() < 50) %>% 
+  select(-id, -pie13, -dessert11, - side15, -contains("Other")) %>% 
+  mutate(
+    "number of\nkinds of pie" = select(., contains("pie")) %>% {!is.na(.)} %>% rowSums(),
+    "total number\nof sides" = select(., contains("side")) %>% {!is.na(.)} %>% rowSums(), 
+    "number of\n non-pie desserts" = select(., contains("dessert")) %>% {!is.na(.)} %>% rowSums()
+  ) %>% 
+  mutate(
+    family_income = factor(family_income,
+                           levels = c("$0 to $9,999" , "$10,000 to $24,999", "$25,000 to $49,999", "$50,000 to $74,999", "$75,000 to $99,999", "$100,000 to $124,999", "$150,000 to $174,999", "$175,000 to $199,999", "$200,000 and up", "Prefer not to answer", "NA"),
+                           ordered = T)
+  )
+
+
+

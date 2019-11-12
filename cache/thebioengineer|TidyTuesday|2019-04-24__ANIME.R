@@ -1,0 +1,55 @@
+## ----load_libraries------------------------------------------------------
+# devtools::install_github("thebioengineer/tidytuesdayR")
+library(tidytuesdayR)
+library(tidyverse)
+
+# devtools::install_github("ropensci/plotly") #the dev 
+library(plotly)
+library(htmlwidgets)
+
+tt_data<-tt_load(2019,week=17)
+
+# tt_data
+
+
+## ----transform-----------------------------------------------------------
+
+
+#cluster groupings over the years
+
+tv_anime<-tt_data$tidy_anime %>%
+  filter(type=="TV") %>% 
+  mutate(start_year=lubridate::year(start_date)) %>% 
+  group_by(genre) %>% 
+  filter(n()>2000) %>% 
+  group_by(genre,start_year) %>% 
+  summarise(mean_episodes=mean(episodes,na.rm=TRUE),
+            mean_score=mean(score,na.rm=TRUE),
+            n=n())%>% 
+  group_by(start_year) %>% 
+  mutate(perc= n / sum(n))
+
+
+ggplot()+
+  geom_bar(data=tv_anime,aes(x=start_year,
+                y=perc,
+                fill=genre,
+                group=genre), stat="identity") + 
+  scale_y_continuous(labels=scales::percent) + 
+  scale_fill_brewer(palette="Set3")
+
+  
+  
+### deep learning model to predict genres & score based on the description/year?
+
+
+three_d_boardgames$sizingPolicy$padding <- "0"
+
+saveWidget(three_d_boardgames,
+           "BoardGame_Ratings.html",     
+           selfcontained = FALSE,
+           libdir = "lib",
+           title = "BoardGame Ratings cloud - TidyTuesday March 13, 2019")
+
+
+

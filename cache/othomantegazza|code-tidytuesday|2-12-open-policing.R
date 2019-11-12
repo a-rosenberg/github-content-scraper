@@ -1,0 +1,365 @@
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(rlang)
+library(lubridate)
+library(scales)
+
+
+## ------------------------------------------------------------------------
+dat_path <- "data/2-12-open-policing.Rdata"
+
+# data for Raleigh, because I have been there
+dat_url <- paste0("https://stacks.stanford.edu/",
+                  "file/druid:tr137st9964/tr137st9964",
+                  "_nc_raleigh_2019_02_25.csv.zip")
+
+if(!file.exists(dat_path)) {
+  # one temporary file zipped
+  # and one with the csv
+  temp <- tempfile()
+  temp2 <- tempfile()
+  download.file(dat_url, destfile = temp)
+  
+  temp2 <- unzip(temp)
+  
+  raleigh <- read_csv(temp2)
+  
+  save(raleigh, file = dat_path)
+} else {
+  load(dat_path)
+}
+
+
+## ------------------------------------------------------------------------
+raleigh$time %>% range(na.rm = TRUE)
+# Time differences in secs
+# [1]     1 86399
+
+
+## ------------------------------------------------------------------------
+day_sec <- 60*60*24
+
+
+# bin stops per minute
+by_minute <- 
+  raleigh %>%  
+  mutate(mins = as_double(time) %/% 60,
+         year = year(date)) %>% 
+  group_by(mins, year) %>% 
+  count() %>% 
+  # na.omit() %>%
+  # strange measurements at 0
+  # probably tecnical issue
+  filter(mins > 0) %>% 
+  group_by(mins) %>% 
+  summarise(n = mean(n))
+
+# check
+span <- 1/30
+by_minute %>% 
+  ggplot(aes(x = mins, y = n)) +
+  stat_smooth(method = "loess", span = span) +
+  geom_point(shape = ".") 
+
+# smooth 
+smooth_obj <- 
+  by_minute %>% 
+  {loess(formula = "n ~ mins",
+         data = .,
+         span = span)}
+
+min_smooth <- 
+  smooth_obj %>% 
+  {tibble(mins = 1:length(.$fitted),
+          fitted = .$fitted)} %>% 
+  full_join(by_minute, by = "mins")
+
+# check
+min_smooth %>% 
+  ggplot(aes(x = mins, y = n)) +
+  geom_line(aes(y = fitted)) +
+  geom_point(shape = ".")
+
+# ribbon 
+med_y <- mean(min_smooth$n)
+fill_up <- "#3752C3"
+min_smooth %>% 
+  ggplot(aes(x = mins)) +
+  geom_ribbon(aes(ymax = fitted,
+                  ymin = med_y),
+              fill = fill_up) +
+  geom_point(aes(y = n),
+             colour = "grey70",
+             shape = ".") +
+  theme_minimal()
+
+
+## ------------------------------------------------------------------------
+# to coordinates
+y_from <- c(0, min_smooth$n %>% max)
+y_to <- c(70, 20)
+x_to <- c(60, -60)
+x_from <- range(min_smooth$mins)
+
+to_plot <- 
+  min_smooth %>% 
+  mutate(mins = rescale(mins, to = x_to, from = x_from),
+         n = rescale(n, to = y_to, from = y_from),
+         fitted = rescale(fitted, to = y_to, from = y_from))
+  
+# save params again
+med_y <- to_plot$n %>% mean
+fill_up <- "#E97E00" # "#B63A82"
+fill_down <- "#263A89" # "#3752C3"
+ytop <- to_plot$n %>% max()
+ylow <- to_plot$n %>% min()
+ridge_width <- to_plot$fitted %>% range() %>% {(.[2] - .[1])/12}
+# grid_at <- c(med_y - ridge_width*3,
+#              med_y,
+#              med_y + ridge_width*3)
+grid_at <- c(20, 40, 60) %>% rescale(to = y_to, from = y_from)
+annos_color <- "grey70"
+text_color <- "#98F0D8"
+
+p <- 
+to_plot %>% 
+  ggplot(aes(x = mins,
+             ymax = fitted)) +
+  geom_ribbon(data = . %>%
+                filter(fitted > med_y),
+              ymin = med_y,
+              fill = fill_up,
+              # colour = colour,
+              alpha = .2) +
+  geom_ribbon(data = . %>%
+                filter(fitted <= med_y),
+              ymin = med_y,
+              fill = fill_down,
+              # colour = colour,
+              alpha = .2)  +
+  coord_map(projection = "azequidistant", orientation = c(90, -45, 225)) +
+  # theme_minimal()
+  theme_void()
+
+
+p
+
+
+## ------------------------------------------------------------------------
+up_gradient <- function(roll, p = p) {
+  p <- p + 
+    geom_ribbon(data = . %>%
+                  filter(fitted > med_y + ridge_width*roll),
+                aes(ymin = med_y + ridge_width*roll),
+                fill = fill_up,
+                alpha = .3)
+  return(p)
+}
+
+
+down_gradient <- function(roll, p = p) {
+  p <- p + 
+    geom_ribbon(data = . %>%
+                  filter(fitted < med_y - ridge_width*roll),
+                aes(ymin = med_y - ridge_width*roll),
+                fill = fill_down,
+                alpha = .3)
+  return(p)
+}
+
+p2 <- up_gradient(1, p)
+p2 <- up_gradient(2, p2)
+p2 <- up_gradient(3, p2)
+p2 <- up_gradient(4, p2)
+p2 <- up_gradient(5, p2)
+p2 <- up_gradient(6, p2)
+p2 <- down_gradient(1, p2)
+p2 <- down_gradient(2, p2)
+p2 <- down_gradient(3, p2)
+p2 <- down_gradient(4, p2)
+p2 <- down_gradient(5, p2)
+
+p2
+
+
+## ------------------------------------------------------------------------
+# Cover up ribbon residues
+p3 <- 
+  p2 +
+  geom_ribbon(data = . %>% 
+                mutate(upper_bound = case_when(fitted < med_y ~ fitted,
+                                               TRUE ~ med_y)),
+              aes(ymax = upper_bound,
+                  ymin = ylow),
+              fill = "white",
+              colour = NA) +
+  geom_ribbon(data = . %>% 
+                mutate(lower_bound = case_when(fitted > med_y ~ fitted,
+                                               TRUE ~ med_y)),
+              aes(ymax = ytop,
+                  ymin = lower_bound),
+              fill = "white",
+              colour = NA) 
+  
+p3
+
+
+
+## ------------------------------------------------------------------------
+
+add_lines <- function(at, p) {
+  p <- 
+    p +
+    geom_hline(yintercept = at,
+               lty = 2,
+               size = .1,
+               colour = annos_color)
+
+  return(p)
+}
+
+p4 <- p3
+for(i in grid_at) p4 <- add_lines(at = i, p = p4)
+p4
+
+
+
+
+## ------------------------------------------------------------------------
+p5 <- 
+  p4 +
+  geom_point(aes(y = n),
+             colour = "grey70",
+             # shape = ".",
+             size = .2,
+             alpha = .5) 
+
+
+## ------------------------------------------------------------------------
+# add y guide
+p6 <- 
+  p5 + 
+  geom_text(data = tibble(x = max(to_plot$mins) + 3,
+                          y = grid_at),
+            aes(x = x,
+                y = y,
+                label = y %>%
+                  rescale(to = y_from, from = y_to) %>% 
+                  round(1)),
+            size = 5,
+            nudge_x = 1,
+            hjust = 1,
+            vjust = .5,
+            angle = max(to_plot$mins),
+            colour = annos_color,
+            inherit.aes = F) 
+
+p6
+
+
+## ------------------------------------------------------------------------
+p7 <- 
+  p6 + 
+  geom_line(data = tibble(x = c(x_to[1] + 1.5, x_to[2] - 7),
+                          y = med_y),
+            aes(x = x, y = y),
+            size = 1.2,
+            arrow = arrow(ends = "first",
+                          length = unit(3.4, "mm"),
+                          type = "closed"),
+            colour = text_color,
+            inherit.aes = FALSE)
+
+p7
+
+
+## ------------------------------------------------------------------------
+hrs <- seq(0, 24, by = 4) * 60
+hrs_guides <- 
+  hrs %>% 
+  {tibble(x = rescale(., to = x_to, from = x_from),
+          label = (./60))}
+
+
+p8 <- 
+  p7 +
+  geom_text(data = hrs_guides,
+            mapping = aes(x = x,
+                          y = med_y,
+                          label = paste0(label, "h"),
+                          angle = x),
+            size = 3,
+            hjust = 0,
+            vjust = 1,
+            nudge_y = .5,
+            colour = "#44D4DC", #"#27A6D3",
+            fontface = "bold",
+            inherit.aes = FALSE)
+
+p8
+
+
+## ------------------------------------------------------------------------
+p9 <- 
+  p8 +
+  labs(title = "Average Police Stops Per Minute of the Day",
+       subtitle = str_wrap("Recorded in Raleigh, NC., between
+                           2002 and 2015. These data are gathered and
+                           maintained by the
+                           Stanford Open Policing Project.", 30),
+       caption = paste0("Data from Stanford Open Policing Project.\n",
+                        "Plot inspired to the design invented by ",
+                        "Nadieh Bremer and Zan Armstrong for the ",
+                        "Baby Spike article in Scientific American.\n",
+                        "Plot done by @othomn in ggplot2.")) +
+  theme(plot.title = element_text(family = "sans",
+                             size = 12,
+                             colour = "grey30", 
+                             hjust = 1),
+        plot.subtitle = element_text(family = "sans",
+                             size = 10,
+                             colour = "grey50", 
+                             hjust = 1),
+        plot.caption = element_text(family = "sans",
+                                    face = "italic",
+                                    size = 10,
+                                    colour = "grey50", 
+                                    hjust = 0))
+
+p9
+
+p10 <- 
+  p9 +
+  annotate(geom = "text",
+           x = (5.5*60) %>% rescale(to = x_to, from = x_from),
+           y = max(to_plot$fitted) + 2,
+           hjust = 0,
+           vjust = 1,
+           label = str_wrap("I can imagine why fewer cars get
+                            stopped by the police
+                            at these hours of the day...", 20),
+           family = "sans",
+           size = 3,
+           colour = "grey50", 
+           lineheight = .9) + 
+  annotate(geom = "text",
+           x = (18.5*60) %>% rescale(to = x_to, from = x_from),
+           y = max(to_plot$fitted) - 5,
+           hjust = 0,
+           vjust = 1,
+           label = str_wrap("...but not why also at these hours.
+                            Dinner time?", 20),
+           family = "sans",
+           size = 3,
+           colour = "grey50", 
+           lineheight = .9) 
+  
+p10
+
+
+
+## ------------------------------------------------------------------------
+svglite::svglite("plots/2-12-open-policing-arc.svg")
+p10
+dev.off()
+

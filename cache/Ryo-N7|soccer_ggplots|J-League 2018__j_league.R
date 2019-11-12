@@ -1,0 +1,44 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ----message=FALSE-------------------------------------------------------
+pacman::p_load(tidyverse, scales, lubridate, ggrepel, glue, extrafont)
+loadfonts()
+
+
+## ------------------------------------------------------------------------
+Sys.setlocale("LC_ALL", "English_United States.932")
+
+
+## ------------------------------------------------------------------------
+url <- "http://www.football-lab.jp/summary/team_ranking/j1/?year=2018&data=chance"
+# CSS Selector: #ccsTable1
+
+jleague_chances_raw <- url %>% 
+  read_html() %>% 
+  html_nodes("#ccsTable1") %>% 
+  html_table() %>% 
+  flatten_df()
+
+
+
+## ------------------------------------------------------------------------
+jleague_chances_clean <- jleague_chances_raw %>% 
+  set_names("img", "team", 
+            "avg_attacks", "rank_1", "avg_shots", "rank_2", 
+            "avg_chance_creation", "rank_3", "avg_goals", "rank_4", 
+            "shots_per_goal", "rank_5") %>% 
+  select(-contains("rank"), -img) %>% 
+  mutate(team = as_factor(team)) %>% 
+  mutate_if(is.character, funs(str_remove(., "%") %>% as.numeric))
+
+jleague_chances_clean %>% glimpse()
+
+
+## ------------------------------------------------------------------------
+jleague_chances_clean %>% 
+  ggplot(aes(shots_per_goal, avg_chance_creation, color = team)) +
+  geom_point() +
+  theme_minimal()
+

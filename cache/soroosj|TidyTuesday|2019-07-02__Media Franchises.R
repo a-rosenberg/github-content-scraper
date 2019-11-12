@@ -1,0 +1,75 @@
+## ----source, warning = TRUE, results = FALSE, message = FALSE------------
+
+   library (tidyverse)
+   library (janitor) 
+
+   franchise_raw <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-07-02/media_franchises.csv") %>%
+      clean_names ()
+
+
+## ----transform, message = F----------------------------------------------
+
+  franchise <- franchise_raw %>%
+      filter (original_media == "Animated film") %>%
+      select (franchise, year_created, revenue_category, revenue) %>%
+      mutate (
+         franchise = case_when (
+            franchise == "Despicable Me / Minions" ~ "Minions",
+            franchise == "The Lion King" ~ "Lion King",
+            TRUE ~ franchise
+            ),
+         #concatenate franchise and start date to enable two rows on x axis
+         franchise_start = paste (franchise, "\n(", year_created, ")", sep = ""), 
+         franchise_start = fct_relevel(franchise_start,              #Control franchise order in chart
+            "Barbie\n(1987)", "Cars\n(2006)", "Toy Story\n(1995)", "Lion King\n(1994)", "Frozen\n(2013)", "Minions\n(2010)", "Aladdin\n(1992)", "Ice Age\n(2002)" 
+            ),
+         revenue = revenue * 10,          #Multiply by 10 to generate more boxes in waffle chart for additional granularity.
+         revenue_category = case_when (
+            revenue_category == "Home Video/Entertainment" ~ "Home Video",
+            revenue_category == "Video Games/Games" ~ "Video Games",
+            revenue_category == "Merchandise, Licensing & Retail" ~ "Merchandise",
+            TRUE ~ revenue_category
+            ),
+         #control revenue group order in chart
+         revenue_category = fct_relevel(revenue_category, "Box Office", "Home Video", "Music", "Video Games", "Merchandise")
+         ) 
+
+
+## ----chart, warning = TRUE, results = FALSE, message = FALSE-------------
+
+   library (waffle)
+   library (ggdark)
+
+   ggplot(franchise, aes(fill=revenue_category, values=revenue)) + 
+     geom_waffle(color = "white", size=.3, n_rows = 8, flip = T) +
+     facet_wrap(~franchise_start, nrow=1, strip.position = "bottom") +     #creates multiple waffle columns
+     #scales
+         scale_x_discrete(expand=c(0,0)) +
+         scale_y_continuous(
+            breaks = seq(5, 50, by = 5), 
+            labels = function(x) x * .8, # make this multiplier the same as n_rows
+            expand = c(0,0)
+            ) +
+         scale_fill_brewer(palette = "Set1") +
+     #themes
+        dark_mode(theme_minimal()) +
+        theme(
+           #download custom Waltograph font and then upload to R via extrafont package:https://www.dafont.com/waltograph.font
+           text = element_text(family = "Waltograph", color = "white"),   
+           plot.title = element_text(hjust = .5, size = 22, face = "bold"),
+           plot.caption = element_text(hjust = 1, size = 12, vjust = .5),
+           axis.title.y = element_text(hjust=1, size = 12, face = "bold"),
+           axis.text.y=element_text(size=12, face = "bold"),
+           strip.text = element_text(size = 13),
+           legend.position = c(0.92,0.67),
+           legend.text = element_text(size=12),
+           legend.key.size = unit(0.5, "cm")
+           ) +
+     labs(
+        title = "Animated Film Franchise Revenues",
+        y = "Revenues ($, billions)",
+        fill = "",
+        caption = "\nEach square represents $100 million in revenues. Year below franchise signifies year of creation. \nSource: Wikipedia  |  Visualization: Joel Soroos @soroosj"
+        ) +
+      ggsave("franchise.png", width = 15, height = 9.5, units = "cm")
+

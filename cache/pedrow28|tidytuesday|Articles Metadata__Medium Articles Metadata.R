@@ -1,0 +1,201 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(viridis)
+library(tm)
+library(tidytext)
+library(plotrix)
+
+
+## ------------------------------------------------------------------------
+
+data <- read_csv("data.txt") %>% select(-1)
+
+
+
+## ------------------------------------------------------------------------
+data %>% group_by(reading_time) %>% 
+  summarise(total_articles = n(),
+            total_claps = sum(claps)) %>%
+  mutate(mean_claps = total_claps / total_articles) %>% 
+  filter(reading_time != 0) %>% 
+  ggplot(aes(x = reading_time)) + 
+    geom_col(aes(y = mean_claps), fill = "#3399ff", width = 1) +
+    labs(x = "Reading Time",
+         y = "Mean Claps",
+         title = "Mean Claps x Reading Time of the Articles") +
+    theme_economist() +
+    theme(axis.ticks.x = element_blank(),
+          axis.line.x = element_blank(),
+          axis.text = element_text(colour = "#004080"),
+          axis.title = element_text(colour = "#004080", face = "bold"),
+          plot.title = element_text(colou = "#004080")
+          )
+
+ggsave("Mean Claps x Reading Time of the Articles.png")
+
+
+## ------------------------------------------------------------------------
+#Gathering info
+
+data_gathered <- data %>% gather(tags, number, tag_ai:tag_machine_learning) %>%
+    mutate(tags = case_when(tags == "tag_ai" ~ "AI",
+                          tags == "tag_artificial_intelligence" ~ "Artificial Intelligence",
+                          tags == "tag_big_data" ~ "Big Data",
+                          tags == "tag_data" ~ "Data",
+                          tags == "tag_data_science" ~ "Data Science",
+                          tags == "tag_data_visualization" ~ "Data Visualization",
+                          tags == "tag_deep_learning" ~ "Deep Learning",
+                          tags == "tag_machine_learning" ~ "Machine Learning"))
+
+
+data_gathered %>% filter(number > 0) %>% 
+  group_by(tags) %>% 
+  summarise(n_articles_tags = n(),
+            total_claps = sum(claps),
+            mean_claps = total_claps / n_articles_tags) %>% 
+  ggplot(aes(fct_reorder(tags, mean_claps), mean_claps)) + 
+    geom_col(aes(fill = tags),show.legend = FALSE) +
+    scale_fill_viridis_d() +
+    theme_economist() +
+    geom_label(aes(label = format(round(mean_claps, 2), big.mark = ".", decimal.mark = ",")), position = position_stack(vjust = 0.95)) +
+    labs(x = "",
+         title = "Mean total claps for each tag",
+         subtitle = "Number of total claps for each tag divideb by the number of articles taged with each theme.") +
+    theme(axis.ticks.x = element_blank(),
+          axis.line.x = element_line(colour = "#ffffff"),
+          axis.text.x = element_blank(),
+          axis.title.x = element_blank()) +
+    coord_flip()
+
+ggsave("Mean total claps for each tag.png")
+
+
+
+
+
+
+## ------------------------------------------------------------------------
+
+path <- data_gathered %>% filter(number > 0) %>% 
+  group_by(tags, year) %>% 
+  summarise(n = n())
+
+plot <- data_gathered %>% filter(number > 0) %>% 
+  group_by(tags, year) %>% 
+  summarise(n = n()) %>% 
+  spread(year, n) %>%
+  mutate(perct_diff = (`2018` / `2017`) - 1)
+ 
+ggplot(plot, aes(x = tags)) +
+ geom_path(data = path, aes(x = tags, y = n)) +
+ geom_point(data = plot, aes(y = `2017`, col = "2017")) +
+ geom_point(data = plot, aes(y = `2018`, col = "2018")) +
+ geom_text(data = plot,
+            aes(y = `2018`, label = paste0("+ ", scales::percent(round(perct_diff, 4)))),
+            colour = "#3333cc",
+            fontface = "bold",
+            hjust = -0.4,
+           vjust = -0.5) +
+ scale_colour_manual(name = "", values = c("#6699ff", "#3333cc")) +
+ scale_y_continuous(limits = c(0, 25000)) +
+ coord_flip() +
+ labs(x = "",
+      y = "",
+      title = "Evolution of tags",
+      subtitle = "Increase of number of articles with each tag between 2017 and 2018") +
+ theme_economist() +
+ theme(axis.text.x = element_blank(),
+       axis.ticks.x = element_blank(),
+       panel.grid.minor.x =  element_blank(),
+       panel.grid.major.x = element_blank(),
+       axis.title.x = element_text(vjust = -1),
+       axis.line.x = element_line(colour = "white", size = 1.1),
+       legend.position = "bottom")
+
+ggsave("Evolution of tags.png")
+ 
+    
+
+
+## ------------------------------------------------------------------------
+
+limpar_corpus <-  function(corpus) {
+  
+  corpus <- tm_map(corpus, removePunctuation)
+  
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  
+  corpus <- tm_map(corpus, removeWords, c((stopwords("en"))))
+  
+  corpus <- tm_map(corpus, stripWhitespace)
+  return(corpus)
+  
+}
+
+
+text_to_corpus <- function(text) {
+  
+  source <- VectorSource(text)
+  
+  corpus <- VCorpus(source)
+  
+  corpus_clean <- limpar_corpus(corpus)
+  
+  return(corpus_clean)
+}
+
+
+
+
+
+
+## ------------------------------------------------------------------------
+
+
+text_2017 <- data_gathered %>% filter(year == 2017) %>% pull(title) %>% paste(collapse = " ")
+
+text_2018 <- data_gathered %>% filter(year == 2018) %>% pull(title) %>% paste(collapse = " ")
+
+
+titles <- c(text_2017, text_2018)
+
+corpus_titles <- text_to_corpus(titles)
+
+
+tdm_titles <- TermDocumentMatrix(corpus_titles)
+
+
+titles_comparison <- tdm_titles
+
+colnames(titles_comparison) <- c("2017", "2018")
+
+matrix_comparison <- as.matrix(titles_comparison)
+
+top_words_2018 <- matrix_comparison %>% 
+                        as_data_frame(rownames = "word") %>% 
+                        filter_all(all_vars(. > 0)) %>% 
+                        mutate(difference = `2018` - `2017`) %>%
+                        top_n(25, wt = difference) %>% 
+                        arrange(desc(difference))
+
+
+pyramid.plot(top_words_2018$`2017`,
+             top_words_2018$`2018`,
+             labels = top_words_2018$word,
+             top.labels = c("2017", "Words", "2018"),
+             main = "Most common words in titles in 2018 compared to 2017",
+             unit = NULL,
+             gap = 30000)
+
+
+
+
+
+
+

@@ -1,0 +1,184 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(lubridate)
+library(ggrepel)
+library(ggthemes)
+library(tidytext)
+library(tm)
+library(wordcloud)
+library(broom)
+
+
+
+
+
+
+## ------------------------------------------------------------------------
+nyc_data <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018-12-11/nyc_restaurants.csv")
+
+nyc_data <- nyc_data %>% mutate(inspection_date = gsub("/", "-", .$inspection_date))
+
+nyc_data <- nyc_data %>% mutate(inspection_date = mdy(inspection_date))
+
+
+## ------------------------------------------------------------------------
+
+number_ofrest <- nyc_data %>% group_by(boro, critical_flag) %>% 
+  summarise(n = n()) %>%
+  mutate(critical_flag = as_factor(critical_flag)) %>%  
+  arrange(desc(n)) %>%
+  filter(!is.na(boro), boro != "Missing", critical_flag != "Not Applicable") %>% 
+  mutate(n = case_when(critical_flag == "Critical" ~ n,
+                       TRUE ~ -n)) %>% 
+  ggplot(aes(x = fct_reorder(boro, -n), y = n, fill = critical_flag)) +
+    geom_col() +
+    geom_label_repel(aes(y = n, label = abs(n), fontface = "bold"),
+                     show.legend = FALSE,
+                     vjust = 1, 
+                     fill = "#b3b3b3",
+                     col = "#ffffff") +
+    coord_flip() + 
+    expand_limits(y = c(-15000, 17000)) +
+    scale_fill_manual(name = "", values = c("Not Critical" = "#99ccff", "Critical" = "#ff8080")) +
+    labs(title = "Inspection situation of NYC restaurants",
+         subtitle = "Critical flags of inspections by boroughs",
+         caption = "Source: NYC Department of Health",
+         x = "",
+         y = "") +
+    theme_economist() +
+    theme(legend.position = "bottom",
+          axis.line.x = element_blank(),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.text.y = element_text(color = "#808080", face = "bold"),
+          legend.text = element_text(color = "#808080"),
+          title = element_text(color = "#808080"))
+
+ggsave("Inspection situation of NYC restaurants.png", number_ofrest)
+    
+
+
+
+
+
+## ------------------------------------------------------------------------
+
+stop_words_my <- stopwords::stopwords("en")
+
+violations <- nyc_data %>% mutate(id = row_number()) %>% 
+  unnest_tokens(word, violation_description) %>%
+  select(id, everything())
+  
+violations <- violations %>% filter(!(word %in% stop_words_my), !is.na(word))
+
+violations_n <- violations %>% group_by(id, critical_flag, word) %>% 
+  summarise(n = n())
+
+violations_tf <- violations_n %>% 
+  bind_tf_idf(word, id, n)
+
+
+
+## ------------------------------------------------------------------------
+
+ matrix_terms <- violations_tf %>% group_by(critical_flag, word) %>%
+  summarise(mean_tf = mean(tf_idf)) %>% 
+  arrange(desc(mean_tf)) %>% 
+  top_n(10) %>%
+  group_by(critical_flag) %>%
+  arrange(desc(mean_tf)) %>%
+  cast_tdm(critical_flag, word, mean_tf) %>% 
+  as.matrix() %>% 
+  #transpose 
+  t()
+
+  colnames(matrix_terms) = c("Common words in critical violations", "Common words in not critical violations")
+
+png("Comparison Cloud.png")
+layout(matrix(c(1, 2), nrow = 2), heights = c(1, 4))
+par(mar = rep(0, 4))
+plot.new()
+text(x = 0.5, y = 0.5, "Most common words in violations description")
+comparison.cloud(matrix_terms, 
+                 random.order = FALSE, 
+                 title.size = 0.9, 
+                 title.bg.colors = "white",
+                 colors = c("#6699ff", "#ff4d4d"))
+
+dev.off()
+
+
+
+## ------------------------------------------------------------------------
+
+model_data <- nyc_data %>% filter(critical_flag != "Not Applicable", !is.na(score)) %>% 
+                           mutate(critical_flag = case_when(critical_flag == "Critical" ~ 1,
+                                                            critical_flag == "Not Critical" ~ 0))
+
+model <- glm(critical_flag ~ score, data = model_data, family = "binomial")
+
+mean(model_data$critical_flag)
+
+
+augmented <- augment(model)
+
+library(pROC)
+
+ROC <- roc(augmented$critical_flag, augmented$.fitted)
+
+plot(ROC)
+
+auc(ROC)
+
+##NOT GOOD MODEL
+
+RMSE <- sqrt(mean(augmented$.resid^2))
+
+Metrics::rmse(augmented$critical_flag, augmented$.fitted)
+
+
+
+
+## ------------------------------------------------------------------------
+scores <- nyc_data %>% mutate(violation_code = as_factor(violation_code)) %>% 
+             select(violation_code, score) %>% 
+             filter(!is.na(score)) %>% 
+             group_by(violation_code) %>% 
+             summarise(min_score = min(score),
+                       mean_score = mean(score),
+                       max_score = max(score)) %>% 
+             arrange(desc(mean_score)) %>%
+             top_n(20) %>%
+  ggplot() +
+    geom_segment(aes(x = violation_code, y = min_score, xend = violation_code, yend = max_score), col =  "white") +
+    geom_point(aes(x = violation_code, y = max_score, col = "Max Score")) +
+    geom_text(aes(x = violation_code, y = max_score, label = max_score), hjust = -0.8, col = "#ff4d4d") +
+    geom_point(aes(x = violation_code, y = min_score, col = "Min Score")) +
+    geom_text(aes(x = violation_code, y = min_score, label = min_score), hjust = 1.3, col = "#6699ff") +
+    scale_color_manual(name = "Scores", values = c("#ff4d4d", "#6699ff")) +
+    ylim(-5, 200) +
+    coord_flip() +
+    labs(title = "Top violation codes by score",
+         subtitle = "10 more violations codes by average max score",
+         caption = "NYC Department of Health",
+         x = "Violation Codes",
+         y = "Score (higher scores means more violations)") +
+    theme_economist() +
+    theme(panel.grid.major = element_blank(),
+          axis.line.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.text.x = element_blank(),
+          axis.title.x = element_text(hjust = 0.4),
+          legend.position = "bottom",
+          plot.title = element_text(hjust = 0.4),
+          plot.subtitle = element_text(hjust = 0.4),
+          title = element_text(color = "#808080"),
+          text = element_text(color = "#808080"))
+
+ggsave("Top violation codes by score.png", scores)
+    
+

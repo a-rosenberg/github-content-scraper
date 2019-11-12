@@ -1,0 +1,122 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(lubridate)
+library(prophet)
+library(ggthemes)
+
+hpi <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-02-05/state_hpi.csv")
+
+
+## ------------------------------------------------------------------------
+# Max
+hpi %>% group_by(state) %>%
+  summarise(max_hpi = max(price_index)) %>%
+  arrange(desc(max_hpi))
+
+# Median
+hpi %>% group_by(state) %>%
+  summarise(avg_hpi = median(price_index)) %>%
+  arrange(desc(avg_hpi)) %>%
+  View()
+
+# Mean
+hpi %>% group_by(state, year) %>%
+  summarise(avg_hpi = median(price_index)) %>%
+  arrange(desc(avg_hpi)) %>%
+  View()
+
+
+## ------------------------------------------------------------------------
+hpi_year <- hpi %>%
+  group_by(state, year) %>%
+  summarise(avg_hpi = mean(price_index))
+
+us_year <- hpi %>%
+  group_by(year) %>%
+  summarise(avg_hpi = mean(us_avg))
+
+
+## ------------------------------------------------------------------------
+hpi_year %>%
+  ggplot() + 
+  geom_line(aes(x = year, y = avg_hpi)) +
+  facet_wrap( ~ state)
+  
+
+
+## ------------------------------------------------------------------------
+midwest <- c("OH", "MI", "IN", "IL", "WI", "MN", "ND", "SD", "NE", "KS", "MO", "IA")
+
+hpi_year %>%
+  filter(state %in% midwest) %>%
+  ggplot() + 
+  geom_line(aes(x = year, y = avg_hpi)) +
+  facet_wrap( ~ state) +
+  labs(title = "Midwest U.S. Price Index")
+
+
+## ------------------------------------------------------------------------
+state_m <- hpi %>%
+  mutate(year_month = as.Date("0000-01-01") + years(year) + months(month - 1)) %>%
+  select(ds = year_month, state, y = price_index) %>%
+  nest(-state) %>% 
+  mutate(m = map(data, prophet))
+
+state_future <- state_m %>%
+  mutate(future = map(m, make_future_dataframe, periods = 120, freq = "month"))
+
+state_forecast <- state_future %>%
+  mutate(forecast = map2(m, future, predict))
+
+tidy_forecast <- state_forecast %>%
+  unnest(forecast)
+
+state_forecast %>%
+  unnest(data) %>%
+  ggplot() + 
+  geom_line(aes(ds, y)) + 
+  geom_ribbon(data = tidy_forecast, aes(as.Date(ds), ymin = yhat_lower, ymax = yhat_upper)) +
+  facet_wrap( ~ state, scales = "free_y") 
+
+
+## ------------------------------------------------------------------------
+mw <- state_forecast %>%
+  unnest(data) %>%
+  filter(state %in% midwest)
+
+mw_forecast <- tidy_forecast %>%
+  filter(state %in% midwest)
+
+mw$state <- state.name[match(mw$state,state.abb)]
+mw_forecast$state <- state.name[match(mw_forecast$state,state.abb)]
+
+mw %>%
+  ggplot() + 
+  geom_line(aes(ds, y)) + 
+  geom_ribbon(data = mw_forecast, aes(as.Date(ds), ymin = yhat_lower, ymax = yhat_upper), alpha = 0.3,
+              fill = "blue") +
+  facet_wrap( ~ state, scales = "free_y") +
+  labs(x = "", y = "", 
+       title = "Forecasted Midwest House Price Index",
+       subtitle = "based on Freddie Mac data 1975-2018") +
+  theme_fivethirtyeight()
+
+
+## ------------------------------------------------------------------------
+mw %>%
+  ggplot() + 
+  geom_line(aes(ds, y)) + 
+  geom_ribbon(data = mw_forecast, aes(as.Date(ds), ymin = yhat_lower, ymax = yhat_upper), alpha = 0.3,
+              fill = "blue") +
+  facet_wrap( ~ state, scales = "free_y") +
+  labs(x = "", y = "", 
+       title = "Forecasted Midwest House Price Index",
+       subtitle = "based on Freddie Mac data 1975-2018") +
+  theme_fivethirtyeight()
+
+ggsave("midwest_hpi.png", plot = last_plot())
+

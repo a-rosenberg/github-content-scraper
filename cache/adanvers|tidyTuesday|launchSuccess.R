@@ -1,0 +1,32 @@
+## ----setup, include=TRUE-------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+space.dat2 <- read.csv("https://raw.githubusercontent.com/TheEconomist/graphic-detail-data/master/data/2018-10-20_space-launches/launches.csv")
+
+
+## ----figure--------------------------------------------------------------
+sucDat <- space.dat2 %>%
+  mutate(success01 = ifelse(category == "F", 0, 1)) %>%
+  group_by(launch_year, agency_type) %>%
+  summarize(propSuc = mean(success01))
+
+plot <- ggplot(data=sucDat, aes(y=propSuc, x=launch_year))+
+  geom_line(aes(color=agency_type))+
+  geom_point(aes(color=agency_type))+
+  theme_bw()+
+  geom_line(stat="smooth", method="loess", aes(color=agency_type), alpha=0.75)+
+  ylim(c(0,1))+
+  labs(title="Proportion of Launch Success \n Over Time by Agency Type",
+       x="Launch Year", y="Proportion of Successful Launches")+
+  scale_color_discrete(guide=FALSE)+
+  facet_grid(agency_type~.)+
+  theme(plot.title=element_text(hjust=0.5))
+
+print(plot)
+
+pdf("launchSuc_plot.pdf")
+print(plot)
+dev.off()
+

@@ -1,0 +1,71 @@
+## ----source, warning = TRUE, results = FALSE, message = FALSE------------
+
+   library("tidyverse")
+   library("ggmap")
+
+   squirrels_raw <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-29/nyc_squirrels.csv")
+   
+   register_google(key = Sys.getenv("GOOGLE_MAPS_API"))
+
+
+## ----transform, message = F, results = F---------------------------------
+
+   squirrels <- squirrels_raw %>%
+      pivot_longer (
+         cols = c(running:foraging, kuks:runs_from), 
+         names_to = "activity", 
+         values_to = "value"
+         ) %>%
+      filter (value == T) %>%
+      select (long, lat, activity) %>%
+      mutate (
+         activity = str_to_title (activity),
+         activity = case_when (
+            activity == "Tail_flags" ~ "Tail Flags",
+            activity == "Tail_twitches" ~ "Tail Twitches",
+            activity == "Runs_from" ~ "Runs From",
+            TRUE ~ activity)
+         )
+
+
+## ----visualize-----------------------------------------------------------
+
+   library (ggdark)
+
+   ggmap(
+      get_googlemap(
+         center = c("Central Park"),
+         zoom = 13, scale = 2, color = 'color',
+         maptype ='roadmap',
+         style = 'style=feature:all|element:labels|visibility:off'
+         )
+      ) +
+      geom_point(
+         data = squirrels, 
+         aes(x = long, y = lat),
+         size = 0.05, alpha = 0.7, color = "blue"
+         ) +
+      scale_x_continuous(limits = c(-73.982, -73.95)) +
+      scale_y_continuous(limits = c(40.765, 40.80)) +
+      dark_mode(theme_minimal()) +
+      theme(
+         plot.title = element_text(hjust = 0, vjust = 0, size = 17, face = "bold", margin = margin (0,0,4,0)),
+         plot.subtitle = element_text(hjust = 0, vjust = 0, size = 8, margin = margin (0,0,25,0)),
+         plot.caption = element_text (hjust = 1, size = 7, face = "plain", margin = margin (10,0,0,0), color="#6D7C83"),
+         axis.title=element_blank(),
+         axis.text=element_blank(),
+         axis.ticks=element_blank(),
+         strip.text = element_text (size = 8),
+         legend.title=element_blank()
+         ) +
+      facet_wrap (
+         facets = vars(activity),
+         nrow = 3
+         ) +
+      labs(
+         title = "Squirrel Behaviors in New York's Central Park",
+         subtitle = "      - Movements such as climbing/foraging far more common than sounds such as kuks/moans.\n      - Results from a study conducted by Jamie Allen and a team of 300 volunteers from October 6-20, 2018.",
+         caption = "Visualization: Joel Soroos @soroosj  |  Data: The Squirrel Census via R4DS Tidy Tuesday"
+         ) +
+      ggsave("squirrels.png", width = 15, height = 17, units = "cm")
+

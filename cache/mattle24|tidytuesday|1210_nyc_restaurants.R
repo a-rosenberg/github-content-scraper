@@ -1,0 +1,106 @@
+## ----packages, message = FALSE, warning=FALSE----------------------------
+library(readr)
+library(dplyr)
+library(janitor)
+library(ggplot2)
+library(mattle24utils)
+library(extrafont)
+library(ggridges)
+library(ipumsr)
+library(sf)
+
+
+## ------------------------------------------------------------------------
+theme_set(theme_mattle24())
+
+
+## ----data, warning=FALSE-------------------------------------------------
+nyc <- read_csv("https://data.cityofnewyork.us/api/views/43nn-pn8j/rows.csv")
+
+nyc <- nyc %>% 
+  janitor::clean_names()
+
+
+## ------------------------------------------------------------------------
+nyc %>% 
+  count(cuisine_description, sort = T) %>% 
+  filter(n < 50)
+
+
+## ------------------------------------------------------------------------
+# We have Italian, pizza, and pizza/ Italian. I want to coalesce, will 
+# turn all pizza/ Italian to pizza
+clean_cuisine <- nyc %>% 
+  filter(!is.na(score)) %>% 
+  mutate(cuisine_description = ifelse(cuisine_description == 'Pizza/Italian', 'Pizza', cuisine_description)) %>% 
+  group_by(cuisine_description) %>% 
+  summarise(mn = mean(score)) %>% 
+  ungroup() %>% 
+  top_n(-10, wt = mn) 
+
+dirty_cuisine <- nyc %>% 
+  filter(!is.na(score)) %>% 
+  mutate(cuisine_description = ifelse(cuisine_description == 'Pizza/Italian', 'Pizza', cuisine_description)) %>% 
+  group_by(cuisine_description) %>% 
+  summarise(mn = mean(score)) %>% 
+  ungroup() %>% 
+  top_n(10, wt = mn) 
+
+clean_dirty_food <- nyc %>% 
+  inner_join(clean_cuisine, by = 'cuisine_description') %>% 
+  bind_rows(
+    nyc %>% 
+      inner_join(dirty_cuisine, by = 'cuisine_description')
+  )
+
+head(clean_dirty_food)
+
+
+## ------------------------------------------------------------------------
+ggplot(clean_dirty_food, aes(y = reorder(cuisine_description, mn), x = score)) + 
+  geom_density_ridges_gradient(aes(fill = score)) +
+  geom_point(aes(x = mn)) +
+  scale_x_continuous(limits = c(0, 50)) +
+  labs(
+    y = "Cuisine"
+    ,x = "Inspection Score"
+  )
+
+
+## ----read zip shp--------------------------------------------------------
+# assume the nhgis zip file is in a data subdirectory, name has to be adjusted 
+# for each download
+zip_shp <- read_ipums_sf(shape_file = "data/nhgis0043_shape.zip")
+
+
+## ----plot zip map--------------------------------------------------------
+zip_data_shp <- nyc %>% 
+  mutate(zipcode = as.character(zipcode)) %>% 
+  group_by(zipcode) %>% 
+  summarise(mn = mean(score, na.rm = T)) %>% 
+  ungroup() %>% 
+  inner_join(zip_shp, by = c('zipcode' = 'ZCTA5CE10'))
+
+zip_plot <- ggplot(zip_data_shp) +
+  geom_sf(aes(fill = mn), color = NA) +
+  scale_fill_gradient2(name = 'Mean Score', low = 'white', mid = '#CC4E4E', high = '#8B2323', 
+                        midpoint = mean(zip_data_shp$mn),
+                        breaks = c(0, 14, 28), labels = c('A', 'B', 'C'), limits = c(0, 29), 
+                        guide = guide_colorbar(ticks = FALSE, frame.colour = 'gray20')) +
+  labs(
+    title = "Restaurant Inspection Grades"
+    ,subtitle = "Average Score by Zipcode"
+    ,x = NULL
+    ,y = NULL
+  ) +
+  theme(panel.background = element_rect(fill = 'gray20')) +
+  coord_sf(datum = NA) +
+  NULL
+
+zip_plot
+
+
+## ----include = F---------------------------------------------------------
+ggsave(zip_plot, filename = 'plots/nyc_restaurants.png', dpi = 320,
+       width = 4, height = 6, units = "in")
+

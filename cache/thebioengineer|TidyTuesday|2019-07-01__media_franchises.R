@@ -1,0 +1,48 @@
+## ----load_libraries------------------------------------------------------
+library(tidyverse)
+library(tidytuesdayR)
+
+library(igraph)
+library(htmlwidgets)
+
+tt<-tt_load("2019-07-02")
+tt
+
+
+## ----transform-----------------------------------------------------------
+
+
+revenue<-tt$media_franchises %>% 
+  mutate(original_media=case_when(
+                               original_media %in% 
+                                 c("Digital pet") ~ "Home Video/Entertainment",
+                               original_media %in% 
+                                 c("Animated film","Film","Musical theatre") ~ "Box Office",
+                               original_media %in%
+                                 c("Comic book","Comic strip","Manga","Visual novel") ~ "Comic or Manga",
+                               original_media %in%
+                                 c("Book","Novel") ~ "Book sales",
+                               original_media %in%
+                                 c("Greeting card") ~ "Merchandise, Licensing & Retail",
+                               original_media %in%
+                                 c("Video game") ~ "Video Games/Games",
+                               original_media %in%
+                                 c("Animated cartoon","Animated series","Anime","Cartoon",
+                                   "Cartoon character","Television series") ~ "TV"
+                               )) %>% 
+  group_by(revenue_category,original_media) %>% 
+  summarise(total_revenue=sum(revenue))
+
+revenue_nodes<-graph_from_data_frame(revenue)
+E(revenue_nodes)$width <- 1+E(revenue_nodes)$weight/12
+
+plot(revenue_nodes,edge.curved=.2)
+
+
+revenue_d3<-data.frame()
+
+ggplotly(ramen_plot)
+
+
+
+

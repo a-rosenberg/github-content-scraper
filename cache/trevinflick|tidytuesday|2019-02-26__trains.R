@@ -1,0 +1,69 @@
+## ----setup, include=FALSE------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+library(scales)
+
+trains <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-02-26/full_trains.csv")
+
+
+## ------------------------------------------------------------------------
+trains$date <- paste(trains$year, trains$month, 01, sep="-") %>% ymd() %>% as.Date()
+
+
+## ------------------------------------------------------------------------
+trains %>% group_by(date) %>%
+  summarise(total_trips = sum(total_num_trips)) %>%
+  ggplot(aes(date, total_trips)) +
+  geom_line() +
+  labs(x = "", y = "", 
+       title = "Total number of train trips in France") + 
+  theme_fivethirtyeight()
+
+
+## ------------------------------------------------------------------------
+trains %>% group_by(date) %>%
+  summarise(total_cancel = sum(num_of_canceled_trains)) %>%
+  ggplot(aes(date, total_cancel)) +
+  geom_line(size = 1.25) +
+  labs(x = "", y = "", 
+       title = "Total number of canceled trains in France",
+       subtitle = "2015-2018",
+       caption = "TidyTuesday week 9, source: SNCF") + 
+  theme_fivethirtyeight()
+  
+# ggsave("france_trains.png")
+
+
+## ------------------------------------------------------------------------
+trains %>% group_by(date) %>%
+  summarise(pct_cancel = sum(num_of_canceled_trains) / (sum(num_of_canceled_trains) + sum(total_num_trips))) %>%
+  ggplot(aes(date, pct_cancel)) +
+  geom_line(size = 1.25) +
+  labs(x = "", y = "", 
+       title = "Percentage of trains canceled in France",
+       subtitle = "2015-2018",
+       caption = "TidyTuesday week 9, source: SNCF") + 
+  scale_y_continuous(labels = scales::percent) +
+  theme_fivethirtyeight()
+
+
+## ------------------------------------------------------------------------
+ggsave("canceled_pct.png")
+
+
+## ------------------------------------------------------------------------
+trains %>% group_by(date) %>%
+  summarise(avg_delay_depart = sum(avg_delay_all_departing),
+            avg_delay_arrive = sum(avg_delay_all_arriving)) %>%
+  ggplot() +
+  geom_line(aes(date, avg_delay_depart), color = "black") +
+  geom_line(aes(date, avg_delay_arrive), color = "blue")
+  labs(x = "", y = "", 
+       title = "Avg delay trains in France") + 
+  theme_fivethirtyeight()
+

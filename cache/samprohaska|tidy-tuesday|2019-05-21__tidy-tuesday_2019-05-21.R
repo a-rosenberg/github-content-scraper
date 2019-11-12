@@ -1,0 +1,84 @@
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(readr)
+library(janitor)
+library(ggthemes)
+library(wesanderson)
+
+coast_vs_waste <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-21/coastal-population-vs-mismanaged-plastic.csv")
+
+mismanaged_vs_gdp <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-21/per-capita-mismanaged-plastic-waste-vs-gdp-per-capita.csv")
+
+waste_vs_gdp <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-21/per-capita-plastic-waste-vs-gdp-per-capita.csv")
+
+dat <- list(coast_vs_waste, mismanaged_vs_gdp, waste_vs_gdp)
+dat <- lapply(dat, clean_names)
+
+mismanaged <- dat[[2]]
+mismanaged <- rename(mismanaged, plastic_waste_misman = "per_capita_mismanaged_plastic_waste_kilograms_per_person_per_day")
+
+waste <- dat[[3]]
+waste <- rename(waste, plastic_waste = "per_capita_plastic_waste_kilograms_per_person_per_day")
+
+
+## ------------------------------------------------------------------------
+df <- mismanaged %>%
+  select(code, year, plastic_waste_misman) %>%
+  left_join(waste, by = c("code", "year"))
+
+df <- rename(df, gdppc = "gdp_per_capita_ppp_constant_2011_international_constant_2011_international")
+
+
+## ------------------------------------------------------------------------
+my_theme <- theme_classic() +
+  theme(
+    plot.background = element_rect(fill = "#fbf8f4"),
+    text = element_text(family = "Raleway", color = "#34495e"),
+    axis.title.x = element_text(color = "#34495e", face = "bold"),
+    axis.ticks.y = element_line(color = "#34495e", size = 0.2),
+    axis.line.y = element_line(color = "#34495e", size = 0.5),
+    axis.text = element_text(color = "#34495e"),
+    axis.ticks.x = element_line(color = "#34495e", size = 0.5),
+    axis.line.x = element_line(color = "#34495e", size = 0.5),
+    axis.title.y = element_text(color = "#34495e", face = "bold"),
+    plot.title = element_text(hjust = 0, color = "#34495e", face = "bold"),
+    plot.subtitle = element_text(hjust = 0, color = "#34495e"),
+    plot.caption = element_text(color = "#34495e", face = "italic"),
+    legend.title = element_text(colour = "#34495e", size = 9, face = "bold"),
+    legend.background = element_rect(fill = NA)
+  )
+
+# ggplot takes care of most of this filtering anyway
+# (non-2010 values should be NA), but I wanted to be sure.
+# `plastic_waste <1` was added to remove Trinidad and Tobago's
+# whopping 3.6 tonnes per capita, as it threw off the scale.
+df_plot <- df %>%
+  filter(year == 2010, is.na(plastic_waste_misman) == FALSE, plastic_waste < 1)
+
+df_plot %>%
+  ggplot(aes(
+    x = gdppc,
+    y = (plastic_waste_misman / plastic_waste) * 100,
+    color = plastic_waste
+  )) +
+  geom_point(size = 1, alpha = 0.9) +
+  scale_color_gradient(low = wes_palette("Zissou1")[1], high = wes_palette("Zissou1")[5]) +
+  stat_smooth(method = "auto",
+              alpha = 0.2,
+              color = "#34495e",
+              size = 0.8,
+              weight = 0.8,
+              ullrange = TRUE,
+              se = FALSE) +
+  scale_x_log10() +
+  ylim(0, 100) +
+  my_theme +
+  labs(
+    title = "Plastic Waste (Mis)management, by Country",
+    caption = "Source: Our World in Data",
+    x = "GDP per capita, logarithmic (2011 US $)",
+    y = "Mismanaged waste, as % of total",
+    color = "Plastic waste
+(tonnes/capita)"
+  )
+

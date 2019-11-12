@@ -1,0 +1,81 @@
+## ----setup, include=FALSE------------------------------------------------
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+library(cowplot)
+
+setwd("~/Desktop/tidytuesday/data/2019/2019-06-25")
+ufo = read.csv("ufo_sightings.csv")
+
+
+
+## ----country-------------------------------------------------------------
+
+ufo %>% 
+  group_by(country) %>%
+  summarise(count=n())
+
+ufo %>%
+  group_by(country) %>%
+  summarise(avg_length=mean(encounter_length, na.rm=TRUE))
+
+
+
+## ----state n-------------------------------------------------------------
+
+# first we need to load in some map data
+
+state_map <- map_data("state")
+stateInfo=cbind.data.frame(abb=tolower(state.abb), name=tolower(state.name))
+state <- inner_join(state_map, stateInfo, by=c("region"="name"))
+
+# let's check the counts of UFO sightings by state
+
+state_n <- ufo %>%
+  dplyr::filter(country == "us") %>%
+  group_by(state) %>%
+  summarise(count=n())
+
+state_n <- inner_join(state, state_n, by=c("abb"="state"))
+state_n$abb <- as.factor(state_n$abb)
+
+ggplot(data=state, mapping=aes(x=long, y=lat, group=group)) + 
+  geom_polygon(data=state_n, aes(fill=count), color="white") +
+  theme_void() +
+  labs(fill="number of encounters") +
+  scale_fill_gradientn(colors=RColorBrewer::brewer.pal(name="Greens", n=48))
+
+
+
+## ----state len-----------------------------------------------------------
+
+ufo %>% 
+  dplyr::filter(country == "us") %>% 
+  ggplot(aes(x=as.factor(encounter_length))) + 
+  geom_histogram(stat="count") +
+  theme(axis.title.x = element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank())
+
+# since the data are clearly skewed, we'll do the rest of the analysis on log-transformed encounter length
+
+state_len <- ufo %>%
+  dplyr::filter(country == "us") %>%
+  group_by(state) %>%
+  summarise(avg_length=mean(log(encounter_length), na.rm=TRUE))
+
+state_len <- inner_join(state, state_len, by=c("abb"="state"))
+state_len$abb <- as.factor(state_len$abb)
+
+length_plot <- ggplot(data=state, mapping=aes(x=long, y=lat, group=group)) + 
+  geom_polygon(data=state_len, aes(fill=avg_length), color="white") +
+  theme_void() +
+  labs(fill="encounter length in log(min)") +
+  scale_fill_gradientn(colors=RColorBrewer::brewer.pal(name="Greens", n=48)) +
+  ggtitle("Length of UFO encounters across the United States") +
+  theme(plot.title = element_text(size=32, face="bold"), legend.position = "bottom") 
+length_plot
+
+alien_plot <- ggdraw() + 
+  draw_plot(length_plot) +
+  draw_image("~/Desktop/tidytuesday/data/2019/2019-06-25/alien.jpg", scale=0.3, width=1.8, height=0.5)
+alien_plot
+

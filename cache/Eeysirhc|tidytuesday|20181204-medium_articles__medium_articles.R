@@ -1,0 +1,111 @@
+## ------------------------------------------------------------------------
+# load packages and parse data
+library(tidyverse)
+library(scales)
+library(RColorBrewer)
+library(forcats)
+library(ggcorrplot)
+library(tidytext)
+library(stringr)
+
+articles_raw <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018-12-04/medium_datasci.csv")
+
+articles <- articles_raw
+
+
+## ------------------------------------------------------------------------
+top_authors <- articles %>%
+  select(author) %>%
+  group_by(author) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  na.omit() %>%
+  head(10)
+
+top_authors %>%
+  ggplot() + 
+  geom_col(aes(reorder(author, n), n), 
+           fill = "darkslategray4",
+           alpha = 0.8) + 
+  coord_flip() +
+  theme_bw(base_size = 15) +
+  labs(x = "",
+       y = "",
+       title = "Top 10 authors on Medium in terms of total articles published")
+
+
+## ------------------------------------------------------------------------
+data(stop_words)
+
+tidy_authors <-
+  articles %>%
+  inner_join(top_authors) %>%
+  select(title, subtitle, author) %>%
+  na.omit() %>%
+  mutate(text = paste(title, " ", subtitle)) %>%
+  select(author, text) %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words)
+
+tidy_authors %>%
+  group_by(author) %>%
+  mutate(word = str_extract(word, "[a-z']+")) %>%
+  count(word, sort = TRUE) %>%
+  mutate(proportion = n / sum(n)) %>%
+  select(-n) %>%
+  spread(author, proportion) %>% 
+  gather(author, proportion, `AI Hawk`:`Synced`) %>%
+  ggplot(aes(x=proportion, y=`Yves Mulkers`, color = abs(`Yves Mulkers` - proportion))) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1, hjust = 1) +
+  geom_abline(color = "darkslategray4", linetype = 2) +
+  scale_color_gradient(limits = c(0, 0.01), 
+                       low = "salmon", high = "blue") +
+  scale_x_log10(labels = percent_format(round(1))) +
+  scale_y_log10(labels = percent_format(round(1))) +
+  labs(y = "Yves Mulkers",
+       x = "",
+       title = "Comparing the word frequencies for the top 10 authors on Medium (title & subtitle only)",
+       subtitle = " \"Top 10\" defined as the total number of articles published") +
+  theme_bw(base_size = 15) +
+  theme(legend.position = "none") +
+  facet_wrap(~author, ncol = 3)
+
+
+## ------------------------------------------------------------------------
+# Plot to see if there are any trends
+articles %>%
+  select(reading_time, claps, tag_ai:tag_machine_learning) %>%
+  gather(tag = tag_ai:tag_machine_learning) %>% 
+  select(-value) %>% 
+  group_by(key, reading_time) %>%
+  summarize(claps = sum(claps)) %>% 
+  ggplot(aes(reading_time, claps, fill = key)) + 
+  geom_col() +
+  facet_wrap(~key) +
+  scale_y_continuous(labels = comma_format()) +
+  scale_x_continuous(limits = c(0,25)) +
+  theme_bw() + 
+  theme(legend.position = 'none') +
+  labs(x = "",
+       y = "",
+       title = "Relationship between reading time of article and total number of claps",
+       subtitle = "The 'sweet spot' is 5 minutes")
+
+# What about correlation?
+articles_tags <- 
+  articles %>%
+  select(reading_time, claps, tag_ai:tag_machine_learning) 
+articles_correlations <- round(cor(articles_tags), 1)
+
+ggcorrplot(articles_correlations, hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 3, 
+           method="circle", 
+           colors = c("salmon", "white", "steelblue"), 
+           title="Correlogram of article tags", 
+           ggtheme=theme_bw)
+
+# No clear relationship but perhaps there might be something between the different tags ?
+

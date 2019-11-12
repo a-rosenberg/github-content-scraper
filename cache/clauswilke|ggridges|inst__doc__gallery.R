@@ -2,6 +2,7 @@
 library(ggplot2)
 library(ggridges)
 
+
 ## ----message=FALSE, warning=FALSE, fig.width = 6, fig.height = 6---------
 library(ggplot2movies)
 ggplot(movies[movies$year>1912,], aes(x = length, y = year, group = year)) +
@@ -9,6 +10,7 @@ ggplot(movies[movies$year>1912,], aes(x = length, y = year, group = year)) +
   theme_ridges() +
   scale_x_continuous(limits=c(1, 200), expand = c(0.01, 0)) +
   scale_y_reverse(breaks=c(2000, 1980, 1960, 1940, 1920, 1900), expand = c(0.01, 0))
+
 
 ## ----message=FALSE, warning=FALSE, fig.width = 6, fig.height = 8---------
 library(dplyr)
@@ -31,6 +33,7 @@ Catalan_elections %>%
                       name = "Option", guide = "legend") +
   theme_ridges(grid = FALSE)
 
+
 ## ----message=FALSE, fig.width = 7.5, fig.height = 5----------------------
 library(viridis)
 ggplot(lincoln_weather, aes(x = `Mean Temperature [F]`, y = `Month`, fill = ..x..)) +
@@ -41,6 +44,7 @@ ggplot(lincoln_weather, aes(x = `Mean Temperature [F]`, y = `Month`, fill = ..x.
   labs(title = 'Temperatures in Lincoln NE',
        subtitle = 'Mean temperatures (Fahrenheit) by month for 2016\nData: Original CSV from the Weather Underground') +
   theme_ridges(font_size = 13, grid = TRUE) + theme(axis.title.y = element_blank())
+
 
 ## ----message=FALSE, fig.width = 6, fig.height = 7------------------------
 # generate data
@@ -68,6 +72,7 @@ ggplot(pois_data, aes(x = value, y = group, group = group)) +
   theme(axis.title.x = element_text(hjust = 0.5),
         axis.title.y = element_text(hjust = 0.5))
 
+
 ## ----message=FALSE, fig.width = 7, fig.height = 5.5----------------------
 library(DAAG) # for ais dataset
 ais$sport <- factor(ais$sport,
@@ -88,6 +93,7 @@ ggplot(ais, aes(x=ht, y=sport, color=sex, point_color=sex, fill=sex)) +
                                color = NA, point_color = NA))) +
   ggtitle("Height in Australian athletes") +
   theme_ridges(center = TRUE)
+
 
 ## ----message=FALSE, fig.width = 6, fig.height = 5------------------------
 set.seed(423)

@@ -1,0 +1,71 @@
+## ------------------------------------------------------------------------
+library(tidyverse)
+library(RColorBrewer)
+library(LaCroixColoR)
+library(extrafont)
+
+# Read in data
+wwc_outcomes <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-07-09/wwc_outcomes.csv")
+squads <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-07-09/squads.csv")
+codes <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-07-09/codes.csv")
+
+
+## ------------------------------------------------------------------------
+wwc_outcomes %>% group_by(team, year) %>%  summarize() %>% mutate(count = n()) %>% 
+  group_by(team) %>% filter(count == 8) %>% summarize()
+
+
+## ------------------------------------------------------------------------
+# arrange by cummulative wins over all seasons
+team_order <- wwc_outcomes %>% 
+  group_by(team) %>%
+  summarize(cum_win = sum(win_status == 'Won')) %>%
+  arrange(desc(cum_win))
+
+
+wwc_outcomes <- wwc_outcomes %>%
+  
+  # filter to top 10 teams
+  filter(team %in% team_order$team[1:10]) %>%
+  
+  # reorder factors for order of appearance on graph
+  mutate(team = factor(team, levels = team_order$team[1:10]),
+         win_status = factor(win_status, levels = c('Won', 'Tie', 'Lost')),
+         round = factor(round, levels = c('Group', 'Round of 16', 'Quarter Final', 'Semi Final', 
+                                          'Third Place Playoff', 'Final'))) %>%
+  
+  # divide 'round = group' into however many grou pmatches were played that year per team
+  arrange(year, team, round)  %>%
+  group_by(year, team) %>%
+  mutate(round = factor(ifelse(round == 'Group', 
+                               paste(round, row_number()), 
+                               as.character(round)),
+                        levels = c('Group 1', 'Group 2', 'Group 3',  'Round of 16', 
+                                   'Quarter Final', 'Semi Final', 'Third Place Playoff', 'Final'))) 
+
+# create a ranking number to plot on the axis
+wwc_outcomes %>%
+  ungroup() %>%
+  arrange(year, team, round) %>%
+  group_by(year, team) %>%
+  mutate(rank = row_number()) %>%
+  
+  ggplot(aes(x = win_status, y = rank, color = round)) +
+  geom_point(size = 3) +
+  geom_vline(xintercept = 2, color = 'grey') +
+  facet_grid(rows = vars(team), cols = vars(year), switch = 'y') +
+  coord_flip() +
+  theme_bw() + 
+  theme(panel.spacing = unit(0, "lines"),
+        strip.background = element_blank(),
+        strip.text.y = element_text(angle = 180),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank()) +
+  labs(x = '', y = '') +
+  scale_x_discrete(expand = c(0.76, 0.75)) +
+  scale_y_discrete(expand = c(0.05, 0.05))
+
+
+  
+
